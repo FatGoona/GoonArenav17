@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="referrer" content="no-referrer">
-    <title>Dynamic Fullscreen Arena V16</title>
+    <title>Welcome 2 da GOONZONE</title>
     <style>
         body, html { background:#000; color:#fff; font-family:sans-serif; margin:0; padding:0; width:100vw; height:100vh; overflow:hidden; }
         #setup-screen { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; height:100vh; width:100vw; overflow-y:auto; padding:24px 0; box-sizing:border-box; }
@@ -31,13 +31,18 @@
         .cell iframe { width:100%; height:100%; border:0; background:#000; }
         .cell-actions.always { opacity:.9; }
         .cell iframe[data-crop] { position:absolute; inset:0; transform-origin:0 0; }
-                .crop-panel { position:absolute; right:8px; top:8px; z-index:7; width:230px; padding:8px 10px; background:rgba(0,0,0,.9); border:1px solid #555; border-radius:6px; font-size:.75rem; display:flex; flex-direction:column; gap:6px; cursor:default; }
+                .crop-panel { position:fixed; right:8px; top:8px; z-index:30; width:230px; padding:8px 10px; background:rgba(0,0,0,.9); border:1px solid #555; border-radius:6px; font-size:.75rem; display:flex; flex-direction:column; gap:6px; cursor:default; }
         .crop-panel label { display:flex; align-items:center; gap:6px; }
         .crop-panel label span { width:48px; flex-shrink:0; }
         .crop-panel input[type=range] { flex:1; min-width:0; accent-color:#3b82f6; cursor:pointer; }
         .crop-panel .row { display:flex; gap:6px; flex-wrap:wrap; }
         .crop-panel button { background:#222; color:#fff; border:1px solid #555; padding:4px 8px; font-size:.75rem; font-weight:normal; border-radius:4px; cursor:pointer; }
         .crop-panel button:hover { background:#3b82f6; border-color:#3b82f6; }
+        .save-badge { position:absolute; bottom:6px; left:8px; z-index:6; font-size:.7rem; line-height:1.2; padding:3px 7px; border-radius:4px; cursor:default; opacity:.55; transition:opacity .2s ease; border:1px solid transparent; }
+        .cell:hover .save-badge { opacity:1; }
+        .save-badge.ok { background:rgba(22,101,52,.92); color:#dcfce7; border-color:#22c55e; }
+        .save-badge.pend { background:rgba(0,0,0,.8); color:#ddd; border-color:#666; }
+        .save-badge.warn, .save-badge.bad { background:rgba(120,53,15,.95); color:#fef3c7; border-color:#f59e0b; cursor:pointer; opacity:.9; }
         .stream-tag { position:absolute; top:6px; left:8px; background:rgba(0,0,0,.7); color:#fff; font-size:.7rem; padding:2px 6px; border-radius:3px; pointer-events:none; z-index:4; max-width:80%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .stream-tag b { color:#ef4444; }
         #stream-box { margin-top:18px; padding:14px; width:80%; max-width:600px; box-sizing:border-box; text-align:center; border:1px dashed #444; border-radius:10px; }
@@ -52,6 +57,11 @@
         #hud { position:absolute; bottom:10px; right:15px; background:rgba(0,0,0,.8); padding:6px 12px; font-size:.8rem; color:#aaa; border-radius:4px; pointer-events:none; z-index:10; }
         #controls { position:absolute; top:10px; right:10px; z-index:20; display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; max-width:92vw; gap:6px; opacity:.4; transition:opacity .2s ease; }
         #controls:hover { opacity:1; }
+        #controls { pointer-events:none; }                       /* the empty gaps between buttons must not block the tiles underneath */
+        #controls > * { pointer-events:auto; }
+        #controls.hidden { display:none; }
+        #ctl-show { position:absolute; top:10px; right:10px; z-index:20; display:none; background:rgba(30,30,30,.9); border:1px solid #444; color:#fff; border-radius:4px; padding:6px 10px; font-size:.8rem; cursor:pointer; opacity:.4; transition:opacity .2s ease; }
+        #ctl-show:hover { opacity:1; }
         #controls button, #controls select { background:rgba(30,30,30,.9); border:1px solid #444; font-size:.8rem; font-weight:normal; padding:6px 10px; color:#fff; border-radius:4px; cursor:pointer; }
         #controls button:hover, #controls select:hover { background:rgba(60,60,60,.95); }
         #vol-wrap { display:flex; align-items:center; gap:4px; font-size:.8rem; background:rgba(30,30,30,.9); border:1px solid #444; border-radius:4px; padding:4px 8px; }
@@ -112,12 +122,13 @@
 
     <div id="setup-screen">
         <div id="setup-top">
-            <h1>Arena V16</h1>
+            <h1>Arena V21</h1>
             <div id="stats"></div>
             <div id="btn-row">
                 <button id="back-btn" class="secondary">Back to Arena</button>
                 <button id="setup-favs-btn" class="secondary">★ View Favorites</button>
                 <button id="clear-btn" class="secondary">Clear filtered-out history</button>
+                <button id="purge-btn" class="secondary" title="Checks every favorite that has no saved file and removes the ones whose link no longer loads (a backup file of what was removed is downloaded first)">🧹 Purge dead favorites</button>
                 <button id="copy-failed-btn" class="secondary">Copy failed URLs</button>
             </div>
         </div>
@@ -224,6 +235,11 @@
                 <option value="contain">Fit: Contain</option>
                 <option value="cover">Fit: Fill (crop)</option>
             </select>
+            <select id="still-mix" title="How often still images are mixed in between GIFs and videos (animated items always come first more often)">
+                <option value="low">Stills: Few</option>
+                <option value="med">Stills: Some</option>
+                <option value="high">Stills: Many</option>
+            </select>
             <label id="vol-wrap" title="Volume for videos you have turned sound on for (use a video's 🔇 button to turn its sound on)">🔊 <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.7"></label>
             <button id="undo-btn" title="Undo last skip (← or Backspace)">↶ Back</button>
             <button id="skip-all-btn" title="Skip the whole grid (→ or Space)">⏭ Next grid</button>
@@ -235,6 +251,7 @@
             <button id="fav-import-btn" title="Load favorites from an exported JSON file">⬆ Import</button>
             <input type="file" id="fav-import-file" accept=".json,application/json" style="display:none">
             <span id="folder-status" style="font-size:.75rem;color:#aaa"></span>
+            <button id="ctl-hide" title="Hide this bar so it can't cover anything (press H to bring it back)">🙈 Hide bar</button>
             <button id="reset-btn">← Add More HTML</button>
         </div>
         <div id="picker">
@@ -274,13 +291,16 @@
         let batches = [];            // one entry per pasted HTML body
         let batchSeq = 0;
         const failed = new Set();
+        const favDead = new Set();            // favorites whose link (and local copy) would not load this session: left out of the favorites wall
 
         const loadJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
         const saveJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
         const dismissed = new Set(loadJSON('arenaDismissedV1', []));
+        const purged = new Set(loadJSON('arenaPurgedV1', []));        // favorites you purged: they stay gone even if an old export / folder file still lists them
+        const savePurged = () => saveJSON('arenaPurgedV1', [...purged]);
         const favorites = new Map(loadJSON('arenaFavoritesV1', []).map(f => [f._key, f]));
-        const prefs = Object.assign({ layout: window.innerWidth > 1024 ? '3x2' : '2x3', fit: 'contain', fitSpot: 'cover', volume: 0.7, camAR: '16:9', dojinCams: 0, camOnly: true, mixFavs: false }, loadJSON('arenaPrefsV1', {}));
+        const prefs = Object.assign({ layout: window.innerWidth > 1024 ? '3x2' : '2x3', fit: 'contain', fitSpot: 'cover', volume: 0.7, camAR: '16:9', dojinCams: 0, camOnly: true, mixFavs: false, stillMix: 'med' }, loadJSON('arenaPrefsV1', {}));
         if (prefs.layout === 'spot') prefs.layout = 'spot1';
 
         const saveDismissed = () => { saveJSON('arenaDismissedV1', [...dismissed]); folderDirty(); };
@@ -566,6 +586,28 @@
                 panel.appendChild(lab);
             }
             cell.appendChild(panel);
+            placeAwayFromControls(panel);
+        }
+
+        // The crop panel floats above everything (so nothing can cover it) and sits just below the top control bar when the tile reaches under it
+        function placeAwayFromControls(panel) {
+            const cell = panel.parentElement; if (!cell) return;
+            const cr = cell.getBoundingClientRect(), ph = panel.offsetHeight, pw = panel.offsetWidth;
+            let right = Math.max(8, window.innerWidth - cr.right + 8);
+            let left = window.innerWidth - right - pw;
+            let top = Math.max(8, cr.top + 8);
+            const bar = $('controls');
+            if (!bar.classList.contains('hidden')) {
+                let barBottom = 0;
+                [...bar.children].forEach(ch => {
+                    if (!ch.offsetParent) return;
+                    const r = ch.getBoundingClientRect();
+                    if (r.width && r.height && r.left < left + pw && r.right > left) barBottom = Math.max(barBottom, r.bottom);
+                });
+                if (barBottom && top < barBottom + 6) top = barBottom + 6;
+            }
+            top = Math.max(8, Math.min(top, window.innerHeight - ph - 8));
+            panel.style.right = right + 'px'; panel.style.top = top + 'px'; panel.style.bottom = 'auto';
         }
 
         // A stream that is offline/blocked stays on its tile (with Retry/Skip) instead of being dropped from the pool
@@ -587,25 +629,39 @@
         }
 
         // ---------- QUEUE ----------
+        // Animated items come first more often, but stills are mixed in the whole way through (never all stills at the very end)
+        const STILL_SHARE = { low: 0.12, med: 0.3, high: 0.5 };
+        function mixQueue(front, rest) {
+            shuffleArray(front); shuffleArray(rest);
+            const share = STILL_SHARE[prefs.stillMix] !== undefined ? STILL_SHARE[prefs.stillMix] : 0.3;
+            const out = []; let a = 0, b = 0;
+            while (a < front.length || b < rest.length) {
+                if (a < front.length && (b >= rest.length || Math.random() >= share)) out.push(front[a++]); else out.push(rest[b++]);
+            }
+            return out;
+        }
+
         function updateQueue() {
             const active = new Set(activeSlots.filter(s => s !== null));
-            const animated = [], others = [];
+            const front = [], rest = [];
             P().forEach((m, i) => {
                 if (active.has(i)) return;
                 if (viewMode === 'pool' && isFiltered(m._key)) return;
-                // Favorites view is a plain shuffle; in the pool, animated items and favorites share the front of the queue
-                const front = viewMode === 'favs' || isAnimated(m) || m._fromFav || favorites.has(m._key);
-                (front ? animated : others).push(i);
+                if (viewMode === 'favs' && favDead.has(m._key)) return;
+                (isAnimated(m) || (viewMode === 'pool' && (m._fromFav || favorites.has(m._key))) ? front : rest).push(i);
             });
-            shuffleArray(animated); shuffleArray(others);
-            poolQueue = [...animated, ...others];
+            poolQueue = mixQueue(front, rest);
         }
 
         function refillFavQueue() {
             const on = new Set(activeSlots.filter(x => x !== null && x !== undefined));
-            poolQueue = favPool.map((_, i) => i).filter(i => !on.has(i));      // never queue what is already on screen
-            if (!poolQueue.length && favSource !== 'streams') poolQueue = favPool.map((_, i) => i);
-            shuffleArray(poolQueue);
+            const build = skipOnScreen => {
+                const f = [], r = [];
+                favPool.forEach((m, i) => { if (favDead.has(m._key) || (skipOnScreen && on.has(i))) return; (isAnimated(m) ? f : r).push(i); });
+                return mixQueue(f, r);
+            };
+            poolQueue = build(true);      // never queue what is already on screen
+            if (!poolQueue.length && favSource !== 'streams') poolQueue = build(false);
         }
 
         // The next item for a given slot: cam spots only accept live streams, everything else takes whatever is next
@@ -642,7 +698,7 @@
         function updateStats() {
             statsEl.textContent = `Pool: ${mediaPool.length} · Filtered out: ${dismissed.size + failed.size} · Favorites: ${favorites.size} · In queue: ${poolQueue.length}`;
             poolCount.innerText = poolQueue.length;
-            hudMode.textContent = viewMode === 'favs' ? (favSource === 'streams' ? '📡 Streams' : '★ Favorites') : 'Pool';
+            hudMode.textContent = viewMode === 'favs' ? (favSource === 'streams' ? '📡 Streams' : '★ Favorites' + (favDead.size ? ` · ${favDead.size} unavailable (link dead, no saved copy)` : '')) : 'Pool';
             favViewBtn.textContent = viewMode === 'favs' ? '← Back to Pool' : `★ Favorites (${favorites.size})`;
             favViewBtn.classList.toggle('on', viewMode === 'favs');
             setupFavsBtn.textContent = `★ View Favorites (${favorites.size})`;
@@ -1095,13 +1151,16 @@
         function toggleFavorite(item, btn) {
             if (favorites.has(item._key)) {
                 const old = favorites.get(item._key);
-                if (old && String(old._key).startsWith('local:') && old._local) ignoreLocal(old._local);      // keep a loose file from coming straight back
+                if (old && String(old._key).startsWith('local:') && old._local) ignoreLocal(old._key);      // keep a loose file from coming straight back
                 favorites.delete(item._key);
             } else {
+                if (purged.delete(item._key)) savePurged();
                 favorites.set(item._key, { url: item._remoteUrl || item.url, _raw: item._remoteUrl ? (item._raw || '') : (item._raw || item.raw || ''), _local: item._local || undefined, isVideo: item.isVideo, pageUrl: item.pageUrl, _key: item._key, _guess: !!item._guess, sprite: item.sprite || null, isStream: !!item.isStream, streamType: item.streamType || null, name: item.name || '' });
             }
             saveFavorites();
+            if (FS_OK && !dirHandle && favorites.has(item._key)) setStatus(pendingHandle ? '⚠ save folder not connected: this favorite is only kept as a link. Click 📁 Reconnect folder.' : '⚠ no save folder set: this favorite is only kept as a link. Click 📁 Save folder to keep files.');
             if (prefs.mixFavs && viewMode === 'pool' && addFavsToPool()) updateQueue();
+            refreshSaveBadges();
             btn.classList.toggle('on', favorites.has(item._key));
             btn.textContent = favorites.has(item._key) ? '★ Favorited' : '☆ Favorite';
             updateStats();
@@ -1235,12 +1294,14 @@
                     }
                 }
                 if (viewMode === 'pool') failed.add(item._key);
+                else if (favSource !== 'streams') favDead.add(item._key);      // dead favorite: stop re-drawing it, so the wall is not just the few that still work
                 advanceSlot(cell, pos);
             };
 
             if (spriteImg) spriteImg.onerror = mediaEl.onerror;
             cell.appendChild(mediaEl);
             cell._item = item; cell._media = mediaEl;
+            updateSaveBadge(cell);
             if (keep && keep.tagName === 'VIDEO' && keep.paused) keep.play().catch(() => {});
             if (item.isStream && item.name) {
                 const tag = document.createElement('div');
@@ -1644,58 +1705,155 @@
             return false;
         }
 
+        // ---------- 'saved to disk' marker on favorited tiles ----------
+        function saveState(key) {
+            const f = favorites.get(key);
+            if (!f || f.isStream || f.sprite) return null;
+            if (localUrls.has(key)) return { cls: 'ok', text: '💾 Saved', tip: 'This favorite is saved as a file in your folder: it plays even if the original link dies.' };
+            if (!FS_OK) return { cls: 'warn', text: '🔗 Link only', tip: 'This browser cannot save files. Use Chrome or Edge, or Export to back up the links.' };
+            if (!dirHandle) return { cls: 'warn', text: '⚠ Not saved', tip: 'No save folder is connected, so this favorite is only a link. Click to reconnect / pick the folder.' };
+            if (saveWhy.has(key)) return { cls: 'bad', text: '🔗 Link only', tip: saveWhy.get(key) + '\n\nClick to retry. Or save the file yourself (Open image ↗ → right-click → Save as) and drop it into the folder: Arena re-links it by file name.' };
+            return { cls: 'pend', text: '⏳ Saving…', tip: 'Waiting for the folder sync.' };
+        }
+        function updateSaveBadge(cell) {
+            if (!cell) return;
+            let b = cell.querySelector(':scope > .save-badge');
+            const item = cell._item;
+            const st = item && item._key ? saveState(item._key) : null;
+            if (!st) { if (b) b.remove(); return; }
+            if (!b) {
+                b = document.createElement('div');
+                b.addEventListener('click', e => {
+                    e.stopPropagation();
+                    if (b.classList.contains('ok') || b.classList.contains('pend')) return;
+                    if (!dirHandle) { folderBtn.click(); return; }
+                    saveTried.delete(b.dataset.key); saveWhy.delete(b.dataset.key);
+                    refreshSaveBadges(); syncToFolder(false);
+                });
+                cell.appendChild(b);
+            }
+            b.className = 'save-badge ' + st.cls; b.textContent = st.text; b.title = st.tip; b.dataset.key = item._key;
+        }
+        function refreshSaveBadges() { cells.forEach(updateSaveBadge); }
+
+        // A saved copy can live in favorites/ (default, may be in a sub-folder) or directly in the folder you picked (_ldir: 'root')
+        async function localFile(f) {
+            let dir = f._ldir === 'root' ? dirHandle : favDir;
+            const parts = String(f._local).split('/');
+            for (let i = 0; i < parts.length - 1; i++) dir = await dir.getDirectoryHandle(parts[i]);
+            return (await dir.getFileHandle(parts[parts.length - 1])).getFile();
+        }
+        const fileGone = e => !!e && (e.name === 'NotFoundError' || e.name === 'TypeMismatchError');
+
         async function loadLocalUrls() {
             if (!favDir) return;
             for (const f of favorites.values()) {
                 if (!f._local || localUrls.has(f._key)) continue;
-                try { const file = await (await favDir.getFileHandle(f._local)).getFile(); localUrls.set(f._key, URL.createObjectURL(file)); }
-                catch (e) { delete f._local; }      // file went missing: it will be downloaded again
+                try { localUrls.set(f._key, URL.createObjectURL(await localFile(f))); }
+                catch (e) { if (fileGone(e)) delete f._local; }      // forget the pointer only when the file is really gone, not on a permission hiccup
             }
         }
 
-        // Loose files: any image/video you drop into favorites/ becomes a favorite automatically
+        // Loose files: any image/video you drop into favorites/ (or into the picked folder itself) becomes a favorite automatically
         const MEDIA_FILE_RE = /\.(jpe?g|png|gif|webp|avif|bmp|mp4|webm|mov|m4v)$/i;
-        const ARENA_SAVED_RE = /^[0-9a-f]{6,8}\.[a-z0-9]+$/i;          // names Arena itself gives to downloaded favorites
+        const VIDEO_FILE_RE = /\.(mp4|webm|mov|m4v)$/i;
+        const isArenaName = n => /^[0-9a-f]{6,8}\.[a-z0-9]+$/i.test(n) && /[a-f]/i.test(n.split('.')[0]);      // names Arena itself gives to downloaded favorites
         const ignoredLocal = new Set(loadJSON('arenaIgnoredLocalV1', []));
-        function ignoreLocal(name) { ignoredLocal.add(name); saveJSON('arenaIgnoredLocalV1', [...ignoredLocal]); }
-        async function scanFolderForNew() {
+        function ignoreLocal(key) { ignoredLocal.add(key); saveJSON('arenaIgnoredLocalV1', [...ignoredLocal]); }
+
+        // Favorites whose pointer to their saved copy got lost: re-link them by their file name (hash of the key)
+        async function adoptOrphans() {
             if (!favDir) return 0;
-            let added = 0, removed = 0;
+            const byBase = new Map();
+            try { for await (const [name, h] of favDir.entries()) if (h.kind === 'file') { const b = name.replace(/\.[^.]+$/, ''); if (!byBase.has(b)) byBase.set(b, name); } } catch (e) { return 0; }
+            let n = 0;
+            for (const f of favorites.values()) {
+                if (f._local || f.isStream || f.sprite) continue;
+                const name = byBase.get(hashKey(f._key));
+                if (!name || !MEDIA_FILE_RE.test(name)) continue;
+                f._local = name;
+                try { localUrls.set(f._key, URL.createObjectURL(await localFile(f))); n++; } catch (e) { delete f._local; }
+            }
+            if (n) saveJSON('arenaFavoritesV1', [...favorites.values()]);
+            return n;
+        }
+
+        async function scanFolderForNew() {
+            if (!favDir || !dirHandle) return 0;
+            let added = 0, removed = 0, capped = false, relinked = 0;
             try {
-                const known = new Set([...favorites.values()].map(f => f._local).filter(Boolean));
-                for await (const [name, h] of favDir.entries()) {
-                    if (h.kind !== 'file' || !MEDIA_FILE_RE.test(name) || known.has(name) || ignoredLocal.has(name) || ARENA_SAVED_RE.test(name)) continue;
-                    const key = 'local:' + name;
-                    if (favorites.has(key)) continue;
-                    try { localUrls.set(key, URL.createObjectURL(await h.getFile())); } catch (e) { continue; }
-                    favorites.set(key, { url: name, _raw: '', _local: name, isVideo: /\.(mp4|webm|mov|m4v)$/i.test(name), pageUrl: null, _key: key, name });
-                    added++;
-                }
+                const known = new Set([...favorites.values()].filter(f => f._local).map(f => (f._ldir === 'root' ? 'root:' : 'fav:') + f._local));
+                // link-only favorites, by the file name in their link: a file you saved yourself under that name is re-linked instead of added twice
+                const linkOnly = new Map();
+                const baseOf = u => { try { return decodeURIComponent(new URL(u).pathname.split('/').pop() || '').toLowerCase(); } catch (e) { return ''; } };
+                const addCand = (n, f) => { if (!n) return; if (!linkOnly.has(n)) linkOnly.set(n, new Set()); linkOnly.get(n).add(f); };
+                favorites.forEach(f => {
+                    if (f._local || f.isStream || f.sprite) return;
+                    [f.url, f._raw].forEach(u => { if (!/^https?:/i.test(u || '')) return; const n = baseOf(u); addCand(n, f); if (/4cdn\.org/i.test(u)) addCand(n.replace(/\.[^.]+$/, ''), f); });
+                });
+                const claim = name => {
+                    const low = name.toLowerCase();
+                    for (const k of [low, low.replace(/\.[^.]+$/, '')]) { const c = linkOnly.get(k); if (c && c.size === 1) { const f = [...c][0]; if (!f._local) return f; } }
+                    return null;
+                };
+                const walk = async (dir, root, prefix, depth) => {
+                    for await (const [name, h] of dir.entries()) {
+                        if (added >= 1000) { capped = true; return; }
+                        if (h.kind === 'directory') { if (!root && depth < 3) await walk(h, root, prefix + name + '/', depth + 1); continue; }      // the picked folder itself is scanned one level only
+                        if (!MEDIA_FILE_RE.test(name)) continue;
+                        if (!root && !prefix && isArenaName(name)) continue;                       // Arena's own downloaded copies
+                        const path = prefix + name;
+                        const key = 'local:' + (root ? '/' : '') + path;
+                        if (known.has((root ? 'root:' : 'fav:') + path) || favorites.has(key) || ignoredLocal.has(key)) continue;
+                        let url; try { url = URL.createObjectURL(await h.getFile()); } catch (e) { continue; }
+                        const mine = claim(name);
+                        if (mine) {
+                            mine._local = path; if (root) mine._ldir = 'root'; else delete mine._ldir;
+                            if (VIDEO_FILE_RE.test(name)) mine.isVideo = true;
+                            localUrls.set(mine._key, url); relinked++;
+                            continue;
+                        }
+                        localUrls.set(key, url);
+                        const f = { url: path, _raw: '', _local: path, isVideo: VIDEO_FILE_RE.test(name), pageUrl: null, _key: key, name };
+                        if (root) f._ldir = 'root';
+                        favorites.set(key, f);
+                        added++;
+                    }
+                };
+                await walk(favDir, false, '', 0);
+                await walk(dirHandle, true, '', 0);
                 // a loose file that was deleted from the folder: drop its favorite
                 for (const [key, f] of [...favorites]) {
                     if (!key.startsWith('local:')) continue;
                     let gone = !f._local;
-                    if (!gone) { try { await favDir.getFileHandle(f._local); } catch (e) { gone = true; } }
+                    if (!gone) { try { await localFile(f); } catch (e) { gone = fileGone(e); } }
                     if (gone) { favorites.delete(key); localUrls.delete(key); removed++; }
                 }
             } catch (e) { console.warn('Arena folder scan failed', e); }
-            if (added || removed) {
+            if (capped) setStatus('⚠ folder scan stopped after 1000 loose files');
+            if (added || removed || relinked) {
                 saveJSON('arenaFavoritesV1', [...favorites.values()]);
+                favDead.clear();
+                refreshSaveBadges();
                 if (added && prefs.mixFavs && viewMode === 'pool' && arenaStarted && addFavsToPool()) updateQueue();
                 updateStats();
             }
-            return added;
+            return added + relinked;
         }
 
         function mergeFavData(data) {
             let added = 0;
+            if (data && Array.isArray(data.purged)) data.purged.forEach(k => { if (typeof k === 'string') purged.add(k); });
+            if (data && data.restore && Array.isArray(data.favorites)) data.favorites.forEach(f => { if (f && f._key) purged.delete(f._key); });      // a purge backup being re-imported
             if (data && Array.isArray(data.favorites)) data.favorites.forEach(f => {
-                if (!f || !f._key) return;
+                if (!f || !f._key || purged.has(f._key)) return;
                 const mine = favorites.get(f._key);
                 if (!mine) { favorites.set(f._key, f); added++; }
                 else if (f._local && !mine._local) mine._local = f._local;
             });
+            purged.forEach(k => favorites.delete(k));
             if (data && Array.isArray(data.dismissed)) data.dismissed.forEach(k => dismissed.add(k));
+            savePurged();
             saveJSON('arenaFavoritesV1', [...favorites.values()]);
             saveJSON('arenaDismissedV1', [...dismissed]);
             return added;
@@ -1714,17 +1872,19 @@
                     setStatus(`saving ${done + bad + 1}/${todo.length}…`);
                     if (!favorites.has(f._key)) continue;
                     if (await saveFavFile(f)) done++; else { bad++; saveTried.add(f._key); }
+                    refreshSaveBadges();
                 }
                 saveJSON('arenaFavoritesV1', [...favorites.values()]);
                 const stamp = new Date().toISOString();
-                await writeJSONFile(dirHandle, 'arena-favorites.json', { saved: stamp, favorites: [...favorites.values()] });
-                await writeJSONFile(dirHandle, 'arena-session.json', { saved: stamp, dismissed: [...dismissed], prefs, poolSize: mediaPool.length });
+                await writeJSONFile(dirHandle, 'arena-favorites.json', { saved: stamp, favorites: [...favorites.values()], purged: [...purged] });
+                await writeJSONFile(dirHandle, 'arena-session.json', { saved: stamp, dismissed: [...dismissed], purged: [...purged], prefs, poolSize: mediaPool.length });
                 const have = [...favorites.values()].filter(f => localUrls.has(f._key)).length;
                 const why = [...saveWhy].filter(([k]) => favorites.has(k) && !localUrls.has(k));
                 const hosts = {}; why.forEach(([, v]) => { const h = v.split(' ')[0]; hosts[h] = (hosts[h] || 0) + 1; });
                 const hostTxt = Object.entries(hosts).map(([h, n]) => `${h} \u00d7${n}`).join(', ');
                 setStatus(`📁 ${dirHandle.name}: ${have}/${favorites.size} favorites saved as files` + (why.length ? ` (${why.length} not saved: ${hostTxt}; links kept. Hover for details)` : ''));
                 folderStatus.title = why.map(([k, v]) => `${k}\n  ${v}`).join('\n\n');
+                refreshSaveBadges();
             } catch (e) {
                 console.warn('Arena folder sync failed', e);
                 setStatus('⚠ folder sync failed (see console)');
@@ -1744,11 +1904,14 @@
                 favDir = await h.getDirectoryHandle('favorites', { create: true });
                 await idb.set('dir', h);
                 setStatus('loading folder…');
-                const added = mergeFavData(await readJSONFile(h, 'arena-favorites.json'));
                 const sess = await readJSONFile(h, 'arena-session.json');
-                if (sess) mergeFavData({ dismissed: sess.dismissed });
+                if (sess) mergeFavData({ dismissed: sess.dismissed, purged: sess.purged });
+                const added = mergeFavData(await readJSONFile(h, 'arena-favorites.json'));
                 await loadLocalUrls();
-                const loose = await scanFolderForNew();
+                const adopted = await adoptOrphans();
+                favDead.clear();
+                const loose = (await scanFolderForNew()) + adopted;
+                refreshSaveBadges();
                 folderBtn.textContent = '📁 Change folder';
                 folderSyncBtn.style.display = '';
                 updateStats();
@@ -1768,7 +1931,7 @@
                     await connectFolder(h, true);
                 } catch (e) { /* picker cancelled */ }
             });
-            folderSyncBtn.addEventListener('click', () => syncToFolder(true));
+            folderSyncBtn.addEventListener('click', () => { favDead.clear(); syncToFolder(true); });
             (async () => {
                 const h = await idb.get('dir');
                 if (!h) return;
@@ -1776,12 +1939,89 @@
             })();
         }
 
+        // After a browser restart the folder needs permission again: ask on your first click anywhere (no need to find the button)
+        let reconnectAsked = false;
+        document.addEventListener('click', () => {
+            if (!pendingHandle || dirHandle || reconnectAsked) return;
+            reconnectAsked = true;
+            connectFolder(pendingHandle, true).then(ok => { if (!ok) setStatus('⚠ folder not reconnected: click 📁 Reconnect folder, favorites are not saved to disk until then'); });
+        }, true);
+
         // Dropped a file into the folder while Arena was open? Pick it up when you return to this tab
         window.addEventListener('focus', debounce(() => { if (dirHandle && favDir) scanFolderForNew().then(n => { if (n) folderDirty(); }); }, 600));
 
+        // ---------- Purge dead favorites ----------
+        // Loads each link the way Arena itself would (no cross-origin download needed). true = loads, false = failed, null = timed out (can't tell)
+        function probe(url, asVideo) {
+            return new Promise(resolve => {
+                let done = false, el = null;
+                const t = setTimeout(() => finish(null), 15000);
+                function finish(ok) {
+                    if (done) return; done = true; clearTimeout(t);
+                    if (el) { el.onload = el.onerror = el.onloadedmetadata = null; el.removeAttribute('src'); if (el.load) el.load(); }
+                    resolve(ok);
+                }
+                if (asVideo) { el = document.createElement('video'); el.preload = 'metadata'; el.muted = true; el.onloadedmetadata = () => finish(true); el.onerror = () => finish(false); el.src = url; }
+                else { el = new Image(); el.referrerPolicy = 'no-referrer'; el.onload = () => finish(true); el.onerror = () => finish(false); el.src = url; }
+            });
+        }
+        async function checkFavorite(f) {
+            const cands = saveCandidates(f).slice(0, 6);
+            let unsure = false;
+            for (const u of cands) {
+                const asVideo = VID_RE.test(u) || (!!f.isVideo && !/\.(jpe?g|png|gif|webp|avif|bmp)(\?|#|$)/i.test(u));
+                const r = await probe(u, asVideo);
+                if (r === true) return 'alive';
+                if (r === null) unsure = true;
+            }
+            return unsure ? 'unsure' : 'dead';
+        }
+
+        const purgeBtn = $('purge-btn');
+        let purging = false;
+        purgeBtn.addEventListener('click', async () => {
+            if (purging) return;
+            purging = true;
+            const label = purgeBtn.textContent;
+            try {
+                // saved copies must be recognised first, or a favorite that does have a file could look dead
+                if (FS_OK && !dirHandle && pendingHandle) {
+                    if (!(await connectFolder(pendingHandle, true))) { alert('Your save folder is not connected. Reconnect it first (📁 button on the Arena screen) so favorites that have a saved file are not mistaken for dead ones, then try again.'); return; }
+                }
+                if (dirHandle) { await adoptOrphans(); await scanFolderForNew(); }
+                const todo = [...favorites.values()].filter(f => !f._local && !localUrls.has(f._key) && !f.isStream && !f.sprite && /^https?:/i.test(f.url || ''));
+                const haveFile = favorites.size - todo.length;
+                if (!todo.length) { alert(`Nothing to check: all ${favorites.size} favorites have a saved file or are streams.`); return; }
+                const dead = [], unsure = []; let n = 0, next = 0;
+                const worker = async () => {
+                    while (next < todo.length) {
+                        const f = todo[next++];
+                        const r = await checkFavorite(f);
+                        if (r === 'dead') dead.push(f); else if (r === 'unsure') unsure.push(f);
+                        purgeBtn.textContent = `🧹 Checking ${++n}/${todo.length}…`;
+                    }
+                };
+                await Promise.all(Array.from({ length: 6 }, worker));
+                if (!dead.length) { alert(`Checked ${todo.length} link-only favorites: none are dead.` + (unsure.length ? ` ${unsure.length} were too slow to tell and were kept.` : '')); return; }
+                if (!confirm(`${dead.length} of your ${favorites.size} favorites can't be loaded and have no saved file.\n\nRemove them? A backup file of the removed ones will download first (you can re-import it to bring them back).\n\nKept: ${favorites.size - dead.length} (${haveFile} saved as files, ${todo.length - dead.length} still loading${unsure.length ? `, ${unsure.length} too slow to tell` : ''}).`)) return;
+                const backup = new Blob([JSON.stringify({ saved: new Date().toISOString(), restore: true, favorites: dead }, null, 1)], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(backup); a.download = `arena-removed-favorites-${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+                dead.forEach(f => { favorites.delete(f._key); purged.add(f._key); failed.add(f._key); });
+                savePurged(); favDead.clear();
+                saveFavorites();
+                if (viewMode === 'favs' && favSource !== 'streams') setView('pool');
+                else if (arenaStarted) updateQueue();
+                updateStats();
+                alert(`Removed ${dead.length} dead favorites. ${favorites.size} remain.`);
+            } finally { purgeBtn.textContent = label; purging = false; }
+        });
+
         // Export / import (works in every browser)
         $('fav-export-btn').addEventListener('click', () => {
-            const blob = new Blob([JSON.stringify({ saved: new Date().toISOString(), favorites: [...favorites.values()], dismissed: [...dismissed] }, null, 1)], { type: 'application/json' });
+            const blob = new Blob([JSON.stringify({ saved: new Date().toISOString(), favorites: [...favorites.values()], dismissed: [...dismissed], purged: [...purged] }, null, 1)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob); a.download = 'arena-favorites.json';
             document.body.appendChild(a); a.click(); a.remove();
@@ -1843,6 +2083,10 @@
             syncCamUi();
             rebuildLayout();
         });
+
+        const stillMixSel = $('still-mix');
+        stillMixSel.value = prefs.stillMix || 'med';
+        stillMixSel.addEventListener('change', () => { prefs.stillMix = stillMixSel.value; savePrefs(); updateQueue(); updateStats(); });
 
         fitSelect.addEventListener('change', () => {
             prefs[isSpot() ? 'fitSpot' : 'fit'] = fitSelect.value;
@@ -2210,10 +2454,19 @@
         pkKind.addEventListener('change', renderPicker);
         pkFilter.addEventListener('input', debounce(renderPicker, 120));
 
+        const controlsBar = $('controls');
+        const ctlShow = document.createElement('button');
+        ctlShow.id = 'ctl-show'; ctlShow.textContent = '☰ Controls'; ctlShow.title = 'Show the control bar (H)';
+        arenaScreen.appendChild(ctlShow);
+        function setControlsHidden(h) { controlsBar.classList.toggle('hidden', h); ctlShow.style.display = h ? 'block' : 'none'; }
+        $('ctl-hide').addEventListener('click', () => setControlsHidden(true));
+        ctlShow.addEventListener('click', () => setControlsHidden(false));
+
         window.addEventListener('keydown', e => {
             if (arenaScreen.style.display !== 'block') return;
             if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ''))) return;
             if (e.key === 'Escape' && pickerOpen) { setPicker(false); return; }
+            if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) { setControlsHidden(!controlsBar.classList.contains('hidden')); return; }
             if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) { setPicker(!pickerOpen); return; }
             if (comic.on) {
                 const k = e.key;
