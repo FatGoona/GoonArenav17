@@ -1,0 +1,2234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <title>Dynamic Fullscreen Arena V16</title>
+    <style>
+        body, html { background:#000; color:#fff; font-family:sans-serif; margin:0; padding:0; width:100vw; height:100vh; overflow:hidden; }
+        #setup-screen { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; height:100vh; width:100vw; overflow-y:auto; padding:24px 0; box-sizing:border-box; }
+        h1 { margin-bottom:12px; font-size:1.5rem; font-weight:400; }
+        textarea { width:80%; max-width:600px; height:150px; background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:12px; font-family:monospace; margin-bottom:15px; resize:vertical; }
+        button { padding:10px 20px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:1rem; }
+        button:hover { background:#2563eb; }
+        button.secondary { background:#222; border:1px solid #444; font-weight:normal; font-size:.85rem; padding:8px 14px; }
+        button.secondary:hover { background:#333; }
+        #btn-row, .btn-row { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+        #stats { color:#9ca3af; font-size:.85rem; margin-bottom:14px; text-align:center; }
+        #error-msg { color:#ef4444; font-size:.9rem; margin-top:10px; min-height:20px; text-align:center; max-width:600px; }
+        #back-btn { display:none; }
+        #batch-list { margin-top:12px; width:80%; max-width:600px; max-height:170px; overflow-y:auto; }
+        .batch-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:6px 10px; background:#111; border:1px solid #333; border-radius:6px; margin-bottom:6px; font-size:.8rem; color:#ccc; }
+        .batch-row span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .batch-row button { padding:4px 10px; font-size:.75rem; flex-shrink:0; }
+
+        #arena-screen { display:none; position:relative; width:100vw; height:100vh; background:#000; }
+        #grid-container { position:absolute; inset:0; display:grid; gap:2px; background:#000; }
+        .region { display:grid; gap:2px; min-width:0; min-height:0; }
+        .cell { background:#000; position:relative; overflow:hidden; cursor:pointer; display:flex; align-items:center; justify-content:center; min-width:0; min-height:0; }
+        .cell img, .cell video, .cell canvas { width:100%; height:100%; object-fit:contain; background:#000; }
+        .cell.cover img, .cell.cover video, .cell.cover canvas { object-fit:cover; }
+        .cell iframe { width:100%; height:100%; border:0; background:#000; }
+        .cell-actions.always { opacity:.9; }
+        .cell iframe[data-crop] { position:absolute; inset:0; transform-origin:0 0; }
+                .crop-panel { position:absolute; right:8px; top:8px; z-index:7; width:230px; padding:8px 10px; background:rgba(0,0,0,.9); border:1px solid #555; border-radius:6px; font-size:.75rem; display:flex; flex-direction:column; gap:6px; cursor:default; }
+        .crop-panel label { display:flex; align-items:center; gap:6px; }
+        .crop-panel label span { width:48px; flex-shrink:0; }
+        .crop-panel input[type=range] { flex:1; min-width:0; accent-color:#3b82f6; cursor:pointer; }
+        .crop-panel .row { display:flex; gap:6px; flex-wrap:wrap; }
+        .crop-panel button { background:#222; color:#fff; border:1px solid #555; padding:4px 8px; font-size:.75rem; font-weight:normal; border-radius:4px; cursor:pointer; }
+        .crop-panel button:hover { background:#3b82f6; border-color:#3b82f6; }
+        .stream-tag { position:absolute; top:6px; left:8px; background:rgba(0,0,0,.7); color:#fff; font-size:.7rem; padding:2px 6px; border-radius:3px; pointer-events:none; z-index:4; max-width:80%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .stream-tag b { color:#ef4444; }
+        #stream-box { margin-top:18px; padding:14px; width:80%; max-width:600px; box-sizing:border-box; text-align:center; border:1px dashed #444; border-radius:10px; }
+        #stream-input { width:100%; height:90px; box-sizing:border-box; margin-bottom:10px; }
+        .cell.target { outline:3px solid #f59e0b; outline-offset:-3px; }
+        .cell-actions { position:absolute; bottom:44px; left:8px; right:8px; display:flex; flex-direction:row; flex-wrap:wrap; align-items:flex-end; justify-content:flex-start; gap:4px; z-index:5; opacity:0; transition:opacity .2s ease; pointer-events:none; }
+        .cell-actions a, .cell-actions button { pointer-events:auto; white-space:nowrap; }
+        .cell:hover .cell-actions { opacity:1; }
+        .cell-actions a, .cell-actions button { background:rgba(0,0,0,.85); color:#fff; border:1px solid #555; padding:4px 8px; font-size:.72rem; line-height:1.2; font-weight:normal; border-radius:4px; text-decoration:none; cursor:pointer; }
+        .cell-actions a:hover, .cell-actions button:hover { background:#3b82f6; border-color:#3b82f6; }
+        .cell-actions button.on { background:#f59e0b; border-color:#f59e0b; color:#000; }
+        #hud { position:absolute; bottom:10px; right:15px; background:rgba(0,0,0,.8); padding:6px 12px; font-size:.8rem; color:#aaa; border-radius:4px; pointer-events:none; z-index:10; }
+        #controls { position:absolute; top:10px; right:10px; z-index:20; display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; max-width:92vw; gap:6px; opacity:.4; transition:opacity .2s ease; }
+        #controls:hover { opacity:1; }
+        #controls button, #controls select { background:rgba(30,30,30,.9); border:1px solid #444; font-size:.8rem; font-weight:normal; padding:6px 10px; color:#fff; border-radius:4px; cursor:pointer; }
+        #controls button:hover, #controls select:hover { background:rgba(60,60,60,.95); }
+        #vol-wrap { display:flex; align-items:center; gap:4px; font-size:.8rem; background:rgba(30,30,30,.9); border:1px solid #444; border-radius:4px; padding:4px 8px; }
+        #vol-wrap input { width:90px; accent-color:#3b82f6; cursor:pointer; }
+	#cam-only-wrap, #mix-favs-wrap { display:flex; align-items:center; gap:4px; font-size:.8rem; background:rgba(30,30,30,.9); border:1px solid #444; border-radius:4px; padding:6px 8px; color:#fff; cursor:pointer; }
+        #controls button:disabled { opacity:.35; cursor:default; }
+        .cell-actions button.snd.on { background:#22c55e; border-color:#22c55e; color:#000; }
+        #comic-bar { display:none; gap:6px; align-items:center; }
+        #comic-pos { font-size:.8rem; min-width:76px; text-align:center; cursor:pointer; background:rgba(30,30,30,.9); border:1px solid #444; border-radius:4px; padding:6px 8px; }
+        #comic-box { margin-top:18px; padding:14px; width:80%; max-width:600px; box-sizing:border-box; text-align:center; border:1px dashed #444; border-radius:10px; }
+        #comic-box.drag { border-color:#f59e0b; background:#1a1405; }
+        #dojin-input { width:100%; height:60px; box-sizing:border-box; margin-bottom:10px; }
+        #shelf { margin-top:10px; text-align:left; }
+        .batch-row.reading { border-color:#f59e0b; }
+        #dojin-btn { display:none; }
+        #comic-status { color:#9ca3af; font-size:.8rem; margin-top:6px; min-height:16px; }
+        #fav-view-btn.on { background:#f59e0b; border-color:#f59e0b; color:#000; }
+        /* ---- Setup page: 3-column layout ---- */
+        #setup-screen { align-items:stretch; padding:16px 24px; gap:12px; }
+        #setup-top { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+        #setup-top h1 { margin:0; white-space:nowrap; }
+        #setup-top #stats { margin:0; text-align:left; flex:1; min-width:200px; }
+        #setup-top #btn-row { justify-content:flex-end; }
+        #setup-screen #error-msg { max-width:none; margin:0; min-height:18px; text-align:left; }
+        #setup-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; align-items:start; }
+        @media (max-width:1100px) { #setup-grid { grid-template-columns:1fr; } }
+        #setup-screen .panel { margin:0; width:auto; max-width:none; box-sizing:border-box; padding:14px; border:1px solid #333; border-radius:10px; background:#0a0a0a; text-align:center; }
+        #setup-screen .panel h2 { font-size:.95rem; font-weight:600; margin:0 0 4px; }
+        #setup-screen .panel .hint { color:#9ca3af; font-size:.78rem; margin-bottom:10px; }
+        #setup-screen .panel .sub { margin-top:16px; padding-top:12px; border-top:1px solid #262626; }
+        #setup-screen .panel textarea { width:100%; max-width:none; box-sizing:border-box; height:18vh; min-height:90px; margin-bottom:10px; }
+        #setup-screen .panel textarea.short { height:11vh; min-height:60px; }
+        #setup-screen .panel textarea#html-input { height:32vh; }
+        #setup-screen #batch-list, #setup-screen #shelf { width:auto; max-width:none; max-height:24vh; overflow-y:auto; margin-top:10px; }
+            /* ---- Video / stream picker (left drawer, so the controls on the right stay reachable) ---- */
+        #pick-btn.on { background:#f59e0b; border-color:#f59e0b; color:#000; }
+        #picker { display:none; position:absolute; top:0; left:0; bottom:0; width:340px; max-width:92vw; z-index:30; background:rgba(8,8,8,.97); border-right:1px solid #333; flex-direction:column; }
+        #picker.open { display:flex; }
+        #picker header { padding:10px 12px; border-bottom:1px solid #262626; display:flex; align-items:center; gap:8px; }
+        #picker header b { flex:1; font-size:.9rem; font-weight:600; }
+        #picker header button { padding:4px 10px; }
+        #picker .pk-tools { padding:8px 12px; display:flex; flex-direction:column; gap:6px; border-bottom:1px solid #262626; }
+        #picker .pk-tools select, #picker .pk-tools input { width:100%; box-sizing:border-box; background:#111; color:#fff; border:1px solid #444; border-radius:4px; padding:6px 8px; font-size:.8rem; }
+        #picker .pk-tools select:disabled { opacity:.5; }
+        #pk-note { color:#f59e0b; font-size:.75rem; min-height:0; padding:0 12px; }
+        #pk-note:not(:empty) { padding:6px 12px; }
+        #pk-list { flex:1; overflow-y:auto; padding:6px; }
+        .pk-row { display:flex; align-items:center; gap:8px; padding:7px 8px; border:1px solid #262626; border-radius:6px; margin-bottom:5px; cursor:pointer; font-size:.8rem; color:#ddd; }
+        .pk-row:hover { background:#1a1a1a; border-color:#3b82f6; }
+        .pk-row.live { border-color:#22c55e; }
+        .pk-row .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .pk-row .bd { font-size:.65rem; background:#222; border:1px solid #444; border-radius:3px; padding:1px 5px; color:#aaa; flex-shrink:0; }
+        .pk-row .at { font-size:.65rem; color:#22c55e; flex-shrink:0; }
+        .pk-empty { color:#777; font-size:.8rem; padding:14px; text-align:center; }
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen">
+        <div id="setup-top">
+            <h1>Arena V16</h1>
+            <div id="stats"></div>
+            <div id="btn-row">
+                <button id="back-btn" class="secondary">Back to Arena</button>
+                <button id="setup-favs-btn" class="secondary">★ View Favorites</button>
+                <button id="clear-btn" class="secondary">Clear filtered-out history</button>
+                <button id="copy-failed-btn" class="secondary">Copy failed URLs</button>
+            </div>
+        </div>
+        <div id="error-msg"></div>
+
+        <div id="setup-grid">
+            <div class="panel" id="pool-box">
+                <h2>🖼 Media pool</h2>
+                <div class="hint">Paste copied page HTML. Every image, GIF and video on it is added and shuffled.</div>
+                <textarea id="html-input" placeholder="Paste your copied HTML here..."></textarea>
+                <div class="btn-row">
+                    <button id="load-btn">Add to Pool &amp; Shuffle</button>
+                </div>
+                <div id="batch-list"></div>
+            </div>
+
+            <div class="panel" id="stream-box">
+                <h2 style="color:#ef4444;">📡 Live Streams</h2>
+                <div class="hint">One per line, optionally <code>Name | url</code>. Supports YouTube, Twitch, Kick, Chaturbate, HLS (.m3u8), direct video and MJPEG links; any other link is embedded as a page.</div>
+                <textarea id="stream-input" placeholder="Lofi | https://www.youtube.com/watch?v=XXXXXXXXXXX&#10;https://www.twitch.tv/somechannel&#10;Cam | https://example.com/live/stream.m3u8"></textarea>
+                <div class="btn-row">
+                    <button id="stream-add-btn" class="secondary">Add streams to pool</button>
+                    <button id="stream-watch-btn">📡 Watch streams only</button>
+                </div>
+                <div class="sub">
+                    <h2 style="color:#ef4444;">🔎 Chaturbate search / tag page</h2>
+                    <div class="hint">Open the search page, copy its HTML (Copy Body), paste it here. Every room on the page is added.</div>
+                    <select id="cb-site" style="margin-bottom:8px;"><option value="chaturbate">Site: Chaturbate</option><option value="stripchat">Site: Stripchat</option></select>
+                    <textarea id="cb-input" class="short" placeholder="Paste the search page's HTML here..."></textarea>
+                    <div class="btn-row">
+                        <button id="cb-add-btn" class="secondary">Add all rooms to pool</button>
+                        <button id="cb-watch-btn">📡 Watch these rooms only</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" id="comic-box">
+                <h2 style="color:#f59e0b;">📖 Dojin Spot</h2>
+                <div class="hint">Pages are read in order in the spotlight. The rest of the screen stays the normal arena, drawing from your pool.</div>
+                <textarea id="dojin-input" class="short" placeholder="Optional: paste a comic's HTML here, then press 'Read pasted HTML'"></textarea>
+                <div class="btn-row">
+                    <button id="comic-html-btn" class="secondary">Read pasted HTML</button>
+                    <button id="comic-files-btn" class="secondary">Open images…</button>
+                    <button id="comic-folder-btn" class="secondary">Open folder…</button>
+                    <button id="comic-zip-btn" class="secondary">Open .cbz / .zip…</button>
+                </div>
+                <div style="color:#6b7280;font-size:.72rem;margin-top:8px;">…or drop images / a .cbz here</div>
+                <div id="comic-status"></div>
+                <div id="shelf"></div>
+                <input type="file" id="comic-files" accept="image/*" multiple hidden>
+                <input type="file" id="comic-folder" webkitdirectory hidden>
+                <input type="file" id="comic-zip" accept=".cbz,.zip" hidden>
+            </div>
+        </div>
+    </div>
+
+    <div id="arena-screen">
+        <div id="controls">
+            <div id="comic-bar">
+                <button id="comic-prev" title="Previous page (←)">◀</button>
+                <span id="comic-pos" title="Click to jump to a page"></span>
+                <button id="comic-next" title="Next page (→ / Space)">▶</button>
+                <select id="comic-cams" title="Add cam spots next to the dojin">
+                    <option value="0">Dojin only</option>
+                    <option value="1">Dojin + Cam</option>
+                    <option value="2">Dojin + 2 Cams</option>
+                </select>
+                <button id="comic-exit" title="Back to the normal arena (your dojin stays on the shelf)">✕ Close dojin</button>
+            </div>
+            <button id="dojin-btn" title="Resume reading your dojin in the spotlight">📖 Dojin</button>
+            <button id="pick-btn" title="Choose which video or stream goes in which spot (V)">📺 Pick</button>
+            <select id="layout-select" title="Layout">
+                <option value="spot1">Spotlight ×1 (native size)</option>
+                <option value="spot2">Spotlight ×2 (native size)</option>
+                <option value="spot3">Spotlight ×3 (native size)</option>
+                <optgroup label="Cam spots (shape set by the ratio box)">
+                    <option value="cam1">Cam spot ×1</option>
+                    <option value="cam2">Cam spots ×2</option>
+                    <option value="cam3">Cam spots ×3</option>
+                    <option value="cam1spot1">Cam + Spotlight</option>
+                    <option value="spot1cam1">Spotlight + Cam</option>
+                    <option value="cam2spot1">2 Cams + Spotlight</option>
+                </optgroup>
+                <option value="3x2">Grid 3×2</option>
+                <option value="2x3">Grid 2×3</option>
+                <option value="2x2">Grid 2×2</option>
+                <option value="3x3">Grid 3×3</option>
+                <option value="4x3">Grid 4×3</option>
+                <option value="4x4">Grid 4×4</option>
+                <option value="2x1">Grid 2×1</option>
+                <option value="1x1">Single 1×1</option>
+            </select>
+            <select id="cam-ar" style="display:none" title="Shape of the cam spots">
+                <option value="16:9">Cam 16:9</option>
+                <option value="21:9">Cam 21:9 (ultrawide)</option>
+                <option value="3:2">Cam 3:2</option>
+                <option value="4:3">Cam 4:3</option>
+                <option value="1:1">Cam 1:1 (square)</option>
+                <option value="3:4">Cam 3:4 (portrait)</option>
+                <option value="9:16">Cam 9:16 (tall)</option>
+            </select>
+            <label id="cam-only-wrap" title="When ticked, live streams only appear in cam spots, never in the regular tiles"><input type="checkbox" id="cam-only"> Streams in cam spots only</label>
+            <select id="fit-select" title="Fit for grid cells / spotlight fill tiles (remembered per mode)">
+                <option value="contain">Fit: Contain</option>
+                <option value="cover">Fit: Fill (crop)</option>
+            </select>
+            <label id="vol-wrap" title="Volume for videos you have turned sound on for (use a video's 🔇 button to turn its sound on)">🔊 <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.7"></label>
+            <button id="undo-btn" title="Undo last skip (← or Backspace)">↶ Back</button>
+            <button id="skip-all-btn" title="Skip the whole grid (→ or Space)">⏭ Next grid</button>
+            <label id="mix-favs-wrap" title="When ticked, your favorites are shuffled into the main pool alongside everything else"><input type="checkbox" id="mix-favs"> ★ Mix favorites into pool</label>
+            <button id="fav-view-btn">★ Favorites (0)</button>
+            <button id="folder-btn" title="Pick a folder: favorites (and the media files themselves) are saved there automatically and reloaded from it next time">📁 Save folder</button>
+            <button id="folder-sync-btn" style="display:none" title="Save/refresh everything to the folder now">🔄 Sync</button>
+            <button id="fav-export-btn" title="Download favorites + skipped list as a JSON file">⬇ Export</button>
+            <button id="fav-import-btn" title="Load favorites from an exported JSON file">⬆ Import</button>
+            <input type="file" id="fav-import-file" accept=".json,application/json" style="display:none">
+            <span id="folder-status" style="font-size:.75rem;color:#aaa"></span>
+            <button id="reset-btn">← Add More HTML</button>
+        </div>
+        <div id="picker">
+            <header><b>📺 Pick a video / stream</b><button id="pk-close" class="secondary" title="Close (V or Esc)">✕</button></header>
+            <div class="pk-tools">
+                <select id="pk-target" title="Where the picked item goes"></select>
+                <select id="pk-kind" title="What to list">
+                    <option value="streams">Live streams</option>
+                    <option value="videos">Videos &amp; GIFs</option>
+                    <option value="all">Streams, videos &amp; GIFs</option>
+                </select>
+                <input id="pk-filter" type="text" placeholder="Filter by name…" autocomplete="off">
+            </div>
+            <div id="pk-note"></div>
+            <div id="pk-list"></div>
+        </div>
+        <div id="hud"><span id="hud-mode"></span> · Remaining in queue: <span id="pool-count">0</span></div>
+        <div id="grid-container"></div>
+    </div>
+
+    <script>
+        // ---------- STATE ----------
+        let mediaPool = [];          // main pool
+        let favPool = [];            // snapshot of favorites while in favorites view
+        let viewMode = 'pool';       // 'pool' | 'favs'
+        let favSource = 'favs';      // while viewMode is 'favs': 'favs' (your favorites) or 'streams' (the live-stream wall)
+        let streamView = [];         // stream items shown by 'Watch streams only'
+        let savedMain = [];          // main-pool slots saved while in favorites view
+        let activeSlots = [];
+        let poolQueue = [];
+        let cells = [];
+        let arenaStarted = false;
+        const GAP = 2;
+        let pickerOpen = false, pkTimer = null, pkTileRR = 0, pkSig = '';
+
+        const poolMap = new Map();   // key -> item currently in the main pool
+        let batches = [];            // one entry per pasted HTML body
+        let batchSeq = 0;
+        const failed = new Set();
+
+        const loadJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
+        const saveJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+
+        const dismissed = new Set(loadJSON('arenaDismissedV1', []));
+        const favorites = new Map(loadJSON('arenaFavoritesV1', []).map(f => [f._key, f]));
+        const prefs = Object.assign({ layout: window.innerWidth > 1024 ? '3x2' : '2x3', fit: 'contain', fitSpot: 'cover', volume: 0.7, camAR: '16:9', dojinCams: 0, camOnly: true, mixFavs: false }, loadJSON('arenaPrefsV1', {}));
+        if (prefs.layout === 'spot') prefs.layout = 'spot1';
+
+        const saveDismissed = () => { saveJSON('arenaDismissedV1', [...dismissed]); folderDirty(); };
+        const saveFavorites = () => { saveJSON('arenaFavoritesV1', [...favorites.values()]); folderDirty(); };
+        const savePrefs = () => saveJSON('arenaPrefsV1', prefs);
+        const isFiltered = key => dismissed.has(key) || failed.has(key);
+        const P = () => (viewMode === 'favs' ? favPool : mediaPool);
+
+        const LAYOUTS = { '3x2':[3,2], '2x3':[2,3], '2x2':[2,2], '3x3':[3,3], '4x3':[4,3], '4x4':[4,4], '2x1':[2,1], '1x1':[1,1] };
+        // Each spotlight slot is one of: 'media' (native-size item), 'cam' (a live stream in a fixed-shape spot) or 'comic' (the dojin page)
+        const HERO_KINDS = {
+            spot1: ['media'], spot2: ['media', 'media'], spot3: ['media', 'media', 'media'],
+            cam1: ['cam'], cam2: ['cam', 'cam'], cam3: ['cam', 'cam', 'cam'],
+            cam1spot1: ['cam', 'media'], spot1cam1: ['media', 'cam'], cam2spot1: ['cam', 'cam', 'media']
+        };
+        // An open dojin takes slot 0 (and can bring up to two cam spots) without touching your saved layout
+        const heroKinds = () => (comic.on ? ['comic', ...Array(Math.min(2, prefs.dojinCams | 0)).fill('cam')] : (HERO_KINDS[prefs.layout] || []));
+        const isSpot = () => heroKinds().length > 0;
+        const heroCount = () => heroKinds().length;
+        const slotKind = pos => heroKinds()[pos] || null;
+        const hasCam = () => heroKinds().includes('cam');
+        const streamsCamOnly = () => prefs.camOnly && !(viewMode === 'favs' && favSource === 'streams');
+        const camRatio = () => { const [a, b] = String(prefs.camAR || '16:9').split(':').map(Number); return a > 0 && b > 0 ? a / b : 16 / 9; };
+        const curFit = () => (isSpot() ? prefs.fitSpot : prefs.fit);
+        const comic = { on: false, pages: [], index: 0, title: '', id: '' };
+        const shelf = [];            // every dojin opened this session (kept so you can close/resume without re-uploading)
+        let lastDojin = null;
+        let lastHeroSize = '';
+        let soundKey = null;                       // the one item (if any) that currently has sound on
+        const histories = { pool: [], favs: [] };  // skipped items, so you can go back
+        let camRR = 0;
+        let heroTarget = null, heroRR = 0;   // which hero slot the next promoted tile replaces
+
+        // ---------- ELEMENTS ----------
+        const $ = id => document.getElementById(id);
+        const setupScreen = $('setup-screen'), arenaScreen = $('arena-screen'), htmlInput = $('html-input');
+        const setupFavsBtn = $('setup-favs-btn'), loadBtn = $('load-btn'), backBtn = $('back-btn'), clearBtn = $('clear-btn');
+        const statsEl = $('stats'), errorMsg = $('error-msg'), gridContainer = $('grid-container');
+        const batchList = $('batch-list');
+        const poolCount = $('pool-count'), hudMode = $('hud-mode'), resetBtn = $('reset-btn');
+        const layoutSelect = $('layout-select'), fitSelect = $('fit-select'), favViewBtn = $('fav-view-btn'), undoBtn = $('undo-btn'), skipAllBtn = $('skip-all-btn'), volumeSlider = $('volume-slider');
+        const comicBar = $('comic-bar'), comicPos = $('comic-pos'), comicStatus = $('comic-status'), dojinBtn = $('dojin-btn'), shelfEl = $('shelf'), dojinInput = $('dojin-input');
+
+        const GIF_RE = /\.gif(\?|#|$)/i;
+        const VID_RE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
+        const IMG_RE = /\.(jpg|jpeg|png|webp|avif|gif|mp4|webm|mov|m4v)(\?|#|$)/i;
+
+        // ---------- HELPERS ----------
+        function decodeHtmlEntities(str) {
+            if (!str) return '';
+            const txt = document.createElement('textarea');
+            txt.innerHTML = str;
+            return txt.value;
+        }
+        function rawUrl(u) {
+            let c = decodeHtmlEntities(u || '').trim().replace(/\\u002F/g, '/');
+            if (c.startsWith('//')) c = 'https:' + c;
+            return c;
+        }
+        // After a failed load: the next URL worth trying (the page's original link, then that link without its query)
+        function nextFallback(item) {
+            const raw = item._raw || item.raw;
+            if (!raw || !/^https?:/i.test(raw)) return null;
+            item._fb = item._fb || new Set([item.url]);
+            for (const u of [raw, raw.split('?')[0]]) if (!item._fb.has(u)) { item._fb.add(u); return u; }
+            return null;
+        }
+        const failedLog = new Map();      // key -> { tried, raw } for items that failed every attempt
+        function logFailure(item) {
+            failedLog.set(item._key, { tried: [...(item._fb || [item.url])], raw: item._raw || item.raw || '' });
+            console.warn('Arena: failed to load', item._key, [...(item._fb || [item.url])]);
+        }
+        function safeDecode(s) { try { return decodeURIComponent(s); } catch (e) { return s; } }
+        function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+        function isValidMediaUrl(url) {
+            if (!url || typeof url !== 'string') return false;
+            const lower = url.toLowerCase();
+            if (lower.includes('favicon') || /\.svg(\?|#|$)/.test(lower)) return false;
+            if (/\/\/(mc\.yandex\.|yastatic\.net|an\.yandex\.|yabs\.yandex\.)/.test(lower)) return false;
+            if (/ehgt\.org\/g\//.test(lower) || /\/blank\.gif/.test(lower)) return false;
+            if (/discord(app)?\.(com|net)/.test(lower)) {
+                if (/\/(emojis|avatars|icons|banners|guilds|app-icons|role-icons|assets)\//.test(lower)) return false;
+                if (/\/(attachments|external|stickers)\//.test(lower)) return true;
+            }
+            return lower.includes('avatars.mds.yandex.net') || lower.includes('4cdn.org') || IMG_RE.test(lower);
+        }
+
+        function findSnippetUrl(obj, depth = 0) {
+            if (!obj || typeof obj !== 'object' || depth > 6) return null;
+            if (obj.snippet && typeof obj.snippet.url === 'string') return obj.snippet.url;
+            for (const k in obj) { const r = findSnippetUrl(obj[k], depth + 1); if (r) return r; }
+            return null;
+        }
+
+        function getPageUrl(el) {
+            let n = el, hops = 0;
+            while (n && n.nodeType === 1 && hops < 8) {
+                const bem = n.getAttribute('data-bem');
+                if (bem && bem.includes('snippet')) {
+                    try {
+                        let u = findSnippetUrl(JSON.parse(decodeHtmlEntities(bem)));
+                        if (u) { if (u.startsWith('//')) u = 'https:' + u; if (/^https?:\/\//i.test(u)) return u; }
+                    } catch (e) {}
+                }
+                n = n.parentElement; hops++;
+            }
+            return discordMsgUrl(el);
+        }
+
+        // Discord: link back to the message the media was posted in
+        let lastRawHTML = '';
+        function discordMsgUrl(el) {
+            const li = el.closest && el.closest('[id^="chat-messages-"]');
+            const m = li && li.id.match(/(\d+)-(\d+)$/);
+            if (!m) return null;
+            const g = lastRawHTML.match(new RegExp('/channels/(\\d+)/' + m[1]));
+            return `https://discord.com/channels/${g ? g[1] : '@me'}/${m[1]}/${m[2]}`;
+        }
+
+        function fileKey(url) {
+            const d = url.match(/discord(?:app)?\.(?:com|net)\/attachments\/(\d+\/\d+\/[^?#]+)/i);
+            if (d) return `discord:${d[1]}`;
+            const m = url.match(/4cdn\.org\/([a-z0-9]+)\/(\d+)s?\.\w+/i);
+            return m ? `4chan:${m[1]}/${m[2]}` : url;
+        }
+
+        function shuffleArray(a) {
+            for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+        }
+
+        const LOCAL_ANIM_RE = /\.(gif|mp4|webm|mov|m4v)$/i;
+        const srcUrl = m => m._remoteUrl || m.url;      // the original link, even when a saved local copy is being displayed
+        function isAnimated(m) { return GIF_RE.test(srcUrl(m)) || VID_RE.test(srcUrl(m)) || LOCAL_ANIM_RE.test(m._local || '') || m._guess || m.isStream; }
+
+        // ---------- LIVE STREAMS ----------
+        // chaturbate.com/<name> pages can't be framed, but the site publishes an embed page for rooms
+        const CB_RESERVED = new Set(['embed','in','auth','tags','tag','events','privacy','affiliates','api','accounts','contest','login','signup','supporter','tipping','p','followed-cams','female-cams','male-cams','couple-cams','trans-cams']);
+        const SC_RESERVED = new Set(['embed','girls','couples','men','trans','tags','tag','favorites','login','signup','search','cams','api','support','blog','models','vr','contest','explore','new','top','all']);
+        function parseStreams(text) {
+            const host = location.hostname || 'localhost';
+            const out = [], seen = new Set();
+            text.split(/\r?\n/).forEach(line => {
+                line = line.trim();
+                if (!line || line.startsWith('#')) return;
+                let name = '', url = line;
+                const bar = line.indexOf('|');
+                if (bar > 0 && !/^https?:/i.test(line.slice(0, bar).trim())) { name = line.slice(0, bar).trim(); url = line.slice(bar + 1).trim(); }
+                if (!/^https?:\/\//i.test(url)) { if (/^[\w.-]+\.[a-z]{2,}\//i.test(url)) url = 'https://' + url; else return; }
+                if (seen.has(url)) return;
+                seen.add(url);
+                let type = 'iframe', play = url, m;
+                if ((m = url.match(/(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|live\/|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/i))) {
+                    play = `https://www.youtube-nocookie.com/embed/${m[1]}?autoplay=1&mute=1&playsinline=1`;
+                } else if ((m = url.match(/youtube\.com\/channel\/(UC[\w-]{22})/i))) {
+                    play = `https://www.youtube.com/embed/live_stream?channel=${m[1]}&autoplay=1&mute=1&playsinline=1`;
+                } else if ((m = url.match(/twitch\.tv\/(?!videos\/|directory)(\w+)/i))) {
+                    play = `https://player.twitch.tv/?channel=${m[1]}&parent=${host}&muted=true&autoplay=true`;
+                    if (!name) name = 'twitch/' + m[1];
+                } else if ((m = url.match(/kick\.com\/([\w-]+)/i))) {
+                    play = `https://player.kick.com/${m[1]}`;
+                    if (!name) name = 'kick/' + m[1];
+                } else if ((m = url.match(/chaturbate\.com\/(?:embed\/)?([A-Za-z0-9_]+)\/?(?:[?#]|$)/i)) && !CB_RESERVED.has(m[1].toLowerCase())) {
+                    play = `https://chaturbate.com/embed/${m[1]}?bgcolor=transparent`;
+                    if (!name) name = m[1];
+                } else if ((m = url.match(/stripchat\.com\/(?:embed\/)?([A-Za-z0-9_-]+)\/?(?:[?#]|$)/i)) && !SC_RESERVED.has(m[1].toLowerCase())) {
+                    play = `https://stripchat.com/embed/${m[1]}`;
+                    if (!name) name = m[1];
+                } else if (/\.m3u8(\?|#|$)/i.test(url)) type = 'hls';
+                else if (VID_RE.test(url)) type = 'video';
+                else if (/mjpe?g|action=stream/i.test(url)) type = 'img';
+                if (!name) { try { name = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {} }
+                out.push({ url: play, isStream: true, streamType: type, isVideo: type === 'hls' || type === 'video', name, pageUrl: url, _key: 'stream:' + url, _tried: [], _batches: [] });
+            });
+            return out;
+        }
+
+        // hls.js is loaded on demand (Safari plays .m3u8 natively and doesn't need it)
+        let hlsLibPromise = null;
+        function loadHlsLib() {
+            if (window.Hls) return Promise.resolve(window.Hls);
+            if (!hlsLibPromise) hlsLibPromise = new Promise((res, rej) => {
+                const sc = document.createElement('script');
+                sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js';
+                sc.onload = () => res(window.Hls);
+                sc.onerror = () => { hlsLibPromise = null; rej(new Error('hls.js failed to load')); };
+                document.head.appendChild(sc);
+            });
+            return hlsLibPromise;
+        }
+        function attachHls(video, url, onFail) {
+            if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src = url; return; }
+            loadHlsLib().then(Hls => {
+                if (video._dead) return;
+                if (!Hls || !Hls.isSupported()) { onFail(); return; }
+                const hls = new Hls({ lowLatencyMode: true });
+                video._hls = hls;
+                hls.on(Hls.Events.ERROR, (_, d) => {
+                    if (!d.fatal) return;
+                    if (d.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError(); else onFail();
+                });
+                hls.loadSource(url);
+                hls.attachMedia(video);
+            }).catch(onFail);
+        }
+        // Stop any stream players inside `root` so removed tiles don't keep downloading
+        function killStreams(root) {
+            root.querySelectorAll('video[data-stream]').forEach(v => {
+                v._dead = true;
+                if (v._hls) { try { v._hls.destroy(); } catch (e) {} v._hls = null; }
+                v.pause(); v.removeAttribute('src'); try { v.load(); } catch (e) {}
+            });
+        }
+        // Zoom/pan for embedded players: the embed is another site's page, so we can only crop what's visible of it
+        const cropPrefs = loadJSON('arenaCropV1', {});
+        const siteKeyOf = item => { try { return 'site:' + new URL(item.pageUrl || item.url).hostname.replace(/^www\./, ''); } catch (e) { return null; } };
+        const getCrop = item => cropPrefs[item._key] || cropPrefs[siteKeyOf(item)] || { z: 1, px: 0.5, py: 0.5 };
+        function applyCrop(el, item) {
+            const { z, px, py } = getCrop(item);
+            const L = px * (1 - 1 / z), T = py * (1 - 1 / z);      // top-left of the visible window, as fractions of the page
+            el.style.transform = z <= 1.001 ? '' : `translate(${(-L * z * 100).toFixed(3)}%, ${(-T * z * 100).toFixed(3)}%) scale(${z})`;
+        }
+        const refreshCrops = () => gridContainer.querySelectorAll('iframe[data-crop]').forEach(f => { if (f._item) applyCrop(f, f._item); });
+
+        function openCropPanel(cell, iframe, item) {
+            const old = cell.querySelector('.crop-panel');
+            if (old) { old.remove(); return; }
+            const site = siteKeyOf(item);
+            const siteName = site ? site.slice(5) : '';
+            const c = { ...getCrop(item) };
+            const syncs = [];
+            const panel = document.createElement('div');
+            panel.className = 'crop-panel';
+            panel.addEventListener('click', e => e.stopPropagation());
+
+            let scope = null;
+            const commit = () => {
+                c.z = Math.min(8, Math.max(1, c.z));
+                c.px = Math.min(1, Math.max(0, c.px));
+                c.py = Math.min(1, Math.max(0, c.py));
+                const val = { z: +c.z.toFixed(3), px: +c.px.toFixed(3), py: +c.py.toFixed(3) };
+                if (site && scope && scope.checked) {
+                    delete cropPrefs[item._key];                       // follow the site setting
+                    if (val.z <= 1.001 && Math.abs(val.px - .5) < .005 && Math.abs(val.py - .5) < .005) delete cropPrefs[site];
+                    else cropPrefs[site] = val;
+                } else {
+                    cropPrefs[item._key] = val;                        // stored even when it's the default, so it overrides the site setting
+                }
+                saveJSON('arenaCropV1', cropPrefs);
+                refreshCrops();
+            };
+
+            const slider = (label, key, min, max, step) => {
+                const row = document.createElement('label');
+                const name = document.createElement('span'); name.textContent = label;
+                const inp = document.createElement('input');
+                inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.value = c[key];
+                inp.addEventListener('input', () => { c[key] = parseFloat(inp.value); commit(); });
+                syncs.push(() => { inp.value = c[key]; });
+                row.append(name, inp);
+                return row;
+            };
+            const setAll = (z, px, py) => { c.z = z; c.px = px; c.py = py; syncs.forEach(f => f()); commit(); };
+            const mk = (label, fn, title) => { const b = document.createElement('button'); b.textContent = label; if (title) b.title = title; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); return b; };
+
+            const btns = document.createElement('div');
+            btns.className = 'row';
+            btns.append(
+                mk('🎯 Video only', () => setAll(1.32, 0, 0.28), 'Crop to just the video (tuned for Chaturbate in a 16:9 cam spot; fine-tune with the sliders)'),
+                mk('↺ Reset', () => setAll(1, 0.5, 0.5)),
+                mk('✓ Done', () => panel.remove())
+            );
+            panel.append(slider('Zoom', 'z', 1, 4, 0.01), slider('Pan X', 'px', 0, 1, 0.005), slider('Pan Y', 'py', 0, 1, 0.005), btns);
+
+            if (site) {
+                const lab = document.createElement('label');
+                scope = document.createElement('input');
+                scope.type = 'checkbox';
+                scope.checked = !cropPrefs[item._key];
+                scope.addEventListener('change', commit);
+                const t = document.createElement('span'); t.style.width = 'auto'; t.textContent = `Apply to every ${siteName} stream`;
+                lab.append(scope, t);
+                panel.appendChild(lab);
+            }
+            cell.appendChild(panel);
+        }
+
+        // A stream that is offline/blocked stays on its tile (with Retry/Skip) instead of being dropped from the pool
+        function streamDown(cell, pos, item) {
+            killStreams(cell);
+            cell.innerHTML = '';
+            const box = document.createElement('div');
+            box.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:8px;color:#ef4444;text-align:center;padding:8px;';
+            const msg = document.createElement('span');
+            msg.textContent = `${item.name || 'Stream'} is offline or blocked`;
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:8px;';
+            const mk = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); return b; };
+            row.append(mk('↻ Retry', () => renderCell(cell, pos)), mk('⏭ Skip', () => skipSlot(cell, pos)));
+            box.append(msg, row);
+            cell.appendChild(box);
+            item._sRetries = (item._sRetries || 0) + 1;
+            if (item._sRetries <= 3) setTimeout(() => { if (cell.isConnected && cell.contains(box) && slotItem(pos) === item) renderCell(cell, pos); }, 8000);
+        }
+
+        // ---------- QUEUE ----------
+        function updateQueue() {
+            const active = new Set(activeSlots.filter(s => s !== null));
+            const animated = [], others = [];
+            P().forEach((m, i) => {
+                if (active.has(i)) return;
+                if (viewMode === 'pool' && isFiltered(m._key)) return;
+                // Favorites view is a plain shuffle; in the pool, animated items and favorites share the front of the queue
+                const front = viewMode === 'favs' || isAnimated(m) || m._fromFav || favorites.has(m._key);
+                (front ? animated : others).push(i);
+            });
+            shuffleArray(animated); shuffleArray(others);
+            poolQueue = [...animated, ...others];
+        }
+
+        function refillFavQueue() {
+            const on = new Set(activeSlots.filter(x => x !== null && x !== undefined));
+            poolQueue = favPool.map((_, i) => i).filter(i => !on.has(i));      // never queue what is already on screen
+            if (!poolQueue.length && favSource !== 'streams') poolQueue = favPool.map((_, i) => i);
+            shuffleArray(poolQueue);
+        }
+
+        // The next item for a given slot: cam spots only accept live streams, everything else takes whatever is next
+                function takeFor(pos) {
+            const isS = i => P()[i] && P()[i].isStream;
+            if (slotKind(pos) !== 'cam') {
+                if (!streamsCamOnly()) return takeNext();
+                let k = poolQueue.findIndex(i => !isS(i));
+                if (k < 0 && viewMode === 'favs' && favPool.length) { refillFavQueue(); k = poolQueue.findIndex(i => !isS(i)); }
+                return k >= 0 ? poolQueue.splice(k, 1)[0] : null;
+            }
+            let k = poolQueue.findIndex(isS);
+            if (k < 0 && viewMode === 'favs' && favPool.length) { refillFavQueue(); k = poolQueue.findIndex(isS); }
+            return k >= 0 ? poolQueue.splice(k, 1)[0] : null;
+        }
+
+        function takeNext() {
+            // Favorites are few: when the queue runs dry, reshuffle (repeats allowed) so no tile goes black
+            if (!poolQueue.length && viewMode === 'favs' && favPool.length) refillFavQueue();
+            return poolQueue.length ? poolQueue.shift() : null;
+        }
+
+        function fillEmptySlots() {
+            const changed = [];
+            for (let i = 0; i < activeSlots.length; i++) {
+                if (activeSlots[i] === null && slotKind(i) !== 'comic') {
+                    const n = takeFor(i);
+                    if (n !== null) { activeSlots[i] = n; changed.push(i); }
+                }
+            }
+            return changed;
+        }
+
+        function updateStats() {
+            statsEl.textContent = `Pool: ${mediaPool.length} · Filtered out: ${dismissed.size + failed.size} · Favorites: ${favorites.size} · In queue: ${poolQueue.length}`;
+            poolCount.innerText = poolQueue.length;
+            hudMode.textContent = viewMode === 'favs' ? (favSource === 'streams' ? '📡 Streams' : '★ Favorites') : 'Pool';
+            favViewBtn.textContent = viewMode === 'favs' ? '← Back to Pool' : `★ Favorites (${favorites.size})`;
+            favViewBtn.classList.toggle('on', viewMode === 'favs');
+            setupFavsBtn.textContent = `★ View Favorites (${favorites.size})`;
+            undoBtn.disabled = !histories[viewMode].length;
+            if (pickerOpen) scheduleRenderPicker();
+        }
+        // ---------- URL UPSCALER ----------
+        function upscaleMediaUrl(url) {
+            if (!url) return url;
+            let clean = decodeHtmlEntities(url).trim().replace(/['"\\)]+$/, '').replace(/\\u002F/g, '/');
+            if (clean.startsWith('//')) clean = 'https:' + clean;
+            if (!/^https?:\/\//i.test(clean)) return clean;
+
+            if (/ehgt\.org|e-hentai\.org|exhentai\.org/i.test(clean)) return clean;
+
+            // --- DISCORD: get the original file (keep the signed ex/is/hm params, drop resize/format params) ---
+            if (/discord(app)?\.(com|net)/i.test(clean)) {
+                const ext = clean.match(/\/external\/[^\/]+\/(?:(https?)\/)?([^?#]+)/i);   // proxied external media (Tenor, Imgur...)
+                if (ext) return (ext[1] || 'https') + '://' + ext[2];
+                try {
+                    const u = new URL(clean);
+                    ['format', 'width', 'height', 'quality', 'animated'].forEach(k => u.searchParams.delete(k));
+                    return u.toString();
+                } catch (e) { return clean; }
+            }
+
+            if (clean.includes('4cdn.org') || clean.includes('4chan.org')) {
+                clean = clean.replace(/\/\/[0-9]?t\.4cdn\.org/, '//i.4cdn.org');
+                clean = clean.replace(/\/(\d+)s\.jpg(\?.*)?$/i, '/$1.jpg');
+                return clean.split('?')[0];
+            }
+            if (clean.includes('avatars.mds.yandex.net')) {
+                clean = clean.split('?')[0];
+                if (!clean.endsWith('/orig')) {
+                    if (/\/[a-zA-Z0-9_-]+(x[a-zA-Z0-9_-]+)?$/.test(clean) && !clean.endsWith('.gif')) {
+                        clean = clean.replace(/\/[^\/]+$/, '/orig');
+                    } else if (clean.includes('/get-images/') || clean.includes('/get-images-cbir/') || clean.includes('/get-zen_doc/') || clean.includes('/get-pdb/')) {
+                        const last = clean.substring(clean.lastIndexOf('/') + 1);
+                        if (!last.includes('.')) clean = clean.replace(/\/[^\/]+$/, '/orig');
+                    }
+                }
+                return clean;
+            }
+            if (clean.includes('donmai.us') || clean.includes('safebooru.org')) {
+                return clean.replace('/preview/', '/original/').replace('/sample/', '/original/')
+                            .replace('/thumbnails/', '/images/').replace('/thumbnail_', '/').split('?')[0];
+            }
+            if (clean.includes('gelbooru.com') || clean.includes('rule34.xxx') || clean.includes('xbooru.com') || clean.includes('realbooru.com')) {
+                return clean.replace(/\/thumbnails\/|\/thumb\//g, '/images/').replace('/thumbnail_', '/').replace('/sample_', '/')
+                            .replace('sample.gelbooru.com//images/', 'img.gelbooru.com/images/').split('?')[0];
+            }
+            if (clean.includes('yande.re') || clean.includes('konachan.')) {
+                return clean.replace('/preview/', '/').replace('/sample/', '/').replace('/jpeg/preview/', '/jpeg/').replace('/jpeg/sample/', '/jpeg/').split('?')[0];
+            }
+            return clean.replace(/\/thumbnails\/|\/preview\/|\/thumbs\/|\/thumb\//g, '/images/').replace('/thumbnail_', '/');
+        }
+
+        // ---------- HTML EXTRACTION ----------
+        function extractItems(rawHTML) {
+            lastRawHTML = rawHTML;
+            const decodedHTML = decodeHtmlEntities(rawHTML);
+            const doc = new DOMParser().parseFromString(rawHTML, 'text/html');
+            const items = [], seen = new Set(), spriteSheets = new Set();
+
+            const addItem = (u, isVideo = false, pageUrl = null, sprite = null) => {
+                const isThumb = /4cdn\.org\/[a-z0-9]+\/\d+s\.jpg/i.test(decodeHtmlEntities(u || ''));
+                const clean = upscaleMediaUrl(u);
+                if (!isValidMediaUrl(clean)) return;
+                if (!sprite && spriteSheets.has(clean)) return;      // whole sprite sheets are not items
+                const key = sprite ? `${clean}#${sprite.x},${sprite.y}` : fileKey(clean);
+                const isItemVideo = isVideo || VID_RE.test(clean);
+                if (seen.has(key)) {
+                    const ex = items.find(i => i._key === key);
+                    if (ex) {
+                        if (pageUrl && !ex.pageUrl) ex.pageUrl = pageUrl;
+                        if (ex._guess && !isThumb) { ex.url = clean; ex.isVideo = isItemVideo; ex._guess = false; }
+                    }
+                    return;
+                }
+                seen.add(key);
+                items.push({ url: clean, _raw: rawUrl(u), isVideo: isItemVideo, pageUrl, _key: key, _guess: isThumb, _tried: [], sprite });
+            };
+
+            const isMediaHref = h => h && (IMG_RE.test(h) || VID_RE.test(h) || h.includes('4cdn.org') || h.includes('/images/') || h.includes('/original/') || h.includes('/attachments/'));
+
+            // PASS 0: gallery grids (E-Hentai etc.). Thumbnails sit inside links to a reader/gallery page, and in
+            // "Normal" view they are CSS sprites: ONE big sheet cropped per thumbnail via background-position.
+            const absHref = h => !h ? null : /^https?:\/\//i.test(h) ? h : h.startsWith('//') ? 'https:' + h : h.startsWith('/') ? 'https://e-hentai.org' + h : null;
+            const spriteRe = /url\(\s*['"]?([^'")]+?)['"]?\s*\)\s*(-?\d+(?:\.\d+)?)(?:px)?\s+(-?\d+(?:\.\d+)?)(?:px)?/i;
+            doc.querySelectorAll('[style*="url("]').forEach(el => {
+                const st = el.getAttribute('style') || '';
+                const sm = st.match(spriteRe);
+                const wm = st.match(/(?:^|[;\s])width:\s*(\d+(?:\.\d+)?)px/i);
+                const hm = st.match(/(?:^|[;\s])height:\s*(\d+(?:\.\d+)?)px/i);
+                if (!sm || !wm || !hm) return;
+                const sheet = upscaleMediaUrl(sm[1]);
+                if (!isValidMediaUrl(sheet)) return;
+                spriteSheets.add(sheet);
+                const a = el.querySelector('a[href]') || el.closest('a[href]');
+                addItem(sm[1], false, a ? absHref(a.getAttribute('href')) : null,
+                        { w: Math.round(+wm[1]), h: Math.round(+hm[1]), x: -Math.round(+sm[2]), y: -Math.round(+sm[3]) });
+            });
+            doc.querySelectorAll('a[href]').forEach(a => {
+                const href = a.getAttribute('href') || '';
+                if (!/\/(s|g)\/[0-9a-f]{6,}\//i.test(href)) return;          // reader (/s/...) or gallery (/g/...) links
+                const img = a.querySelector('img');
+                const src = img && (img.getAttribute('data-src') || img.getAttribute('src'));
+                if (src) addItem(src, false, absHref(href));
+            });
+
+            doc.querySelectorAll('a[href]').forEach(a => {
+                const href = a.getAttribute('href');
+                if (isMediaHref(href)) addItem(href, VID_RE.test(href), getPageUrl(a));
+            });
+
+            const hiRes = ['data-file-url', 'data-original', 'data-original-url', 'data-full-url', 'data-large', 'data-large-file-url'];
+            doc.querySelectorAll('*').forEach(el => {
+                const pageUrl = getPageUrl(el);
+                const isVid = el.tagName === 'VIDEO' || el.tagName === 'SOURCE';
+                hiRes.forEach(attr => { const v = el.getAttribute(attr); if (v) addItem(v, isVid, pageUrl); });
+            });
+
+            doc.querySelectorAll('img, video, source').forEach(el => {
+                let hasAnchor = false, p = el.parentElement, hops = 0;
+                while (p && hops < 5) {
+                    if (p.tagName === 'A' && isMediaHref(p.getAttribute('href'))) { hasAnchor = true; break; }
+                    p = p.parentElement; hops++;
+                }
+                if (!hasAnchor) {
+                    const pageUrl = getPageUrl(el);
+                    const isVid = el.tagName === 'VIDEO' || el.tagName === 'SOURCE';
+                    ['src', 'data-src', 'data-url', 'data-safe-src'].forEach(attr => { const v = el.getAttribute(attr); if (v) addItem(v, isVid, pageUrl); });
+                }
+            });
+
+            let m;
+            const encImg = /img_url=([^&"'\s<>]+)/gi;
+            while ((m = encImg.exec(decodedHTML)) !== null) addItem(safeDecode(m[1]), false);
+            const encAny = /https?%3A%2F%2F[^&"'\s<>]+/gi;
+            while ((m = encAny.exec(decodedHTML)) !== null) addItem(safeDecode(m[0]), false);
+            const plain = /(?:https?:)?\/\/[^\s"'<>]+?(?:avatars\.mds\.yandex\.net[^\s"'<>]*|i\.4cdn\.org[^\s"'<>]*|\.(?:mp4|webm|mov|m4v|gif|jpg|jpeg|png|webp|avif)(?:\?[^\s"'<>]*)?)/gi;
+            while ((m = plain.exec(decodedHTML)) !== null) addItem(m[0], false);
+
+            return { items, title: (doc.title || '').trim() };
+        }
+
+        // ---------- LAYOUT GEOMETRY ----------
+        function currentGeometry() {
+            if (!isSpot()) {
+                const [cols, rows] = LAYOUTS[prefs.layout] || [3, 2];
+                return { kind: 'grid', cols, rows, count: cols * rows };
+            }
+            const W = window.innerWidth, H = window.innerHeight;
+            const kinds = heroKinds();
+            const n = kinds.length;
+            const raw = kinds.map((k, i) => {
+                if (k === 'cam') { const hc = H * 0.7; return { w: hc * camRatio(), h: hc }; }      // cam spots take the chosen aspect ratio, whatever the stream's own shape
+                const it = slotItem(i);
+                return { w: it && it._dim ? it._dim.w : W * 0.5 / n, h: it && it._dim ? it._dim.h : H * 0.5 };
+            });
+            const sumW = raw.reduce((a, r) => a + r.w, 0), maxH = Math.max(...raw.map(r => r.h));
+            // Native-size spotlights are only ever shrunk (uniformly) to fit; dojin pages and cam spots may also grow, but leave the arena room
+            const canGrow = kinds.every(k => k !== 'media');
+            const frac = kinds.includes('cam') ? (n === 1 ? 0.62 : 0.78) : (comic.on ? 0.6 : Infinity);      // max share of the screen width for all spots together
+            const sc = Math.min(canGrow ? Infinity : 1, (W - GAP * (n - 1)) / sumW, H / maxH, (W * frac) / sumW);
+            const heroes = raw.map(r => {
+                const hw = Math.max(1, Math.round(r.w * sc)), hh = Math.max(1, Math.round(r.h * sc));
+                return { hw, hh, bh: H - hh - GAP };
+            });
+            const rw = W - heroes.reduce((a, h) => a + h.hw, 0) - GAP * n;
+
+            let target = Math.max(240, Math.min(W, H) / 2.2);
+            const calc = t => {
+                const hs = heroes.map(h => ({
+                    ...h,
+                    bc: h.bh > 4 ? Math.max(1, Math.round(h.hw / t)) : 0,
+                    br: h.bh > 4 ? Math.max(1, Math.round(h.bh / t)) : 0
+                }));
+                const rc = rw > 4 ? Math.max(1, Math.round(rw / t)) : 0;
+                const rr = rw > 4 ? Math.max(1, Math.round(H / t)) : 0;
+                return { heroes: hs, rc, rr, count: n + hs.reduce((a, h) => a + h.bc * h.br, 0) + rc * rr };
+            };
+            let g = calc(target);
+            while (g.count > 16 && target < 3000) { target *= 1.15; g = calc(target); }
+            return Object.assign({ kind: 'spot' }, g);
+        }
+
+        function makeCell(cover) {
+            const pos = cells.length;
+            const cell = document.createElement('div');
+            cell.className = 'cell' + (cover ? ' cover' : '');
+            cell.addEventListener('click', e => skipSlot(cell, pos, e));
+            cells.push(cell);
+            return cell;
+        }
+
+        function makeRegion(cols, rows, style) {
+            const r = document.createElement('div');
+            r.className = 'region';
+            r.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            r.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+            Object.assign(r.style, style);
+            for (let i = 0; i < cols * rows; i++) r.appendChild(makeCell(curFit() === 'cover'));
+            return r;
+        }
+
+        function buildDom(geo) {
+            // Lift media that is already playing out of the old grid so a resize/re-layout doesn't restart it
+            const hold = document.createDocumentFragment();
+            const keepMap = new Map();
+            cells.forEach(c => {
+                const m = c._media, it = c._item;
+                if (m && it && m.isConnected && c.contains(m) && m.tagName !== 'IFRAME' && !keepMap.has(it)) { keepMap.set(it, m); hold.appendChild(m); }
+            });
+            killStreams(gridContainer);
+            gridContainer.innerHTML = '';
+            cells = [];
+            const st = gridContainer.style;
+            const tileCover = curFit() === 'cover';
+            if (geo.kind === 'grid') {
+                st.display = 'grid';
+                st.gridTemplateColumns = `repeat(${geo.cols}, 1fr)`;
+                st.gridTemplateRows = `repeat(${geo.rows}, 1fr)`;
+                for (let i = 0; i < geo.count; i++) gridContainer.appendChild(makeCell(tileCover));
+            } else {
+                // One column per native-size item (hero on top, fill tiles beneath), plus a fill region on the right
+                st.display = 'flex';
+                st.gridTemplateColumns = ''; st.gridTemplateRows = '';
+                const heroCells = geo.heroes.map((_, i) => makeCell(slotKind(i) === 'cam' && tileCover));      // slots 0..n-1
+                const cols = geo.heroes.map((h, i) => {
+                    const col = document.createElement('div');
+                    col.style.cssText = `display:flex;flex-direction:column;gap:${GAP}px;flex:0 0 ${h.hw}px;min-width:0;min-height:0;`;
+                    heroCells[i].style.flex = `0 0 ${h.hh}px`;
+                    col.appendChild(heroCells[i]);
+                    return col;
+                });
+                geo.heroes.forEach((h, i) => { if (h.bc) cols[i].appendChild(makeRegion(h.bc, h.br, { flex: '1 1 0' })); });
+                cols.forEach(c => gridContainer.appendChild(c));
+                if (geo.rc) gridContainer.appendChild(makeRegion(geo.rc, geo.rr, { flex: '1 1 0' }));
+            }
+            cells.forEach((c, i) => {
+                const it = slotItem(i);
+                c._keep = (it && keepMap.get(it)) || null;      // same item still on screen: reuse its element
+                renderCell(c, i);
+            });
+            killStreams(hold);                                   // anything not reused is shut down
+            hold.querySelectorAll('video').forEach(v => v.pause());
+            lastHeroSize = geo.kind === 'spot' ? geo.heroes[0].hw + 'x' + geo.heroes[0].hh : '';
+            if (heroTarget !== null && cells[heroTarget]) cells[heroTarget].classList.add('target');
+        }
+
+        // Favorites mixed into the main pool: appended to the end, so existing slot indices never shift
+        function addFavsToPool() {
+            let n = 0;
+            favorites.forEach((f, key) => {
+                if (poolMap.has(key)) return;                    // already in the pool (from a paste)
+                const it = { ...favView(f), _batches: [], _fromFav: true };
+                poolMap.set(key, it);
+                mediaPool.push(it);
+                n++;
+            });
+            return n;
+        }
+
+        function removeFavsFromPool() {
+            const mine = new Set(mediaPool.filter(it => it._fromFav));
+            if (!mine.size) return;
+            const removed = new Set([...mine].filter(it => !it._batches.length));      // ones also pasted in a batch stay
+            mine.forEach(it => { it._fromFav = false; });
+            if (!removed.size) return;
+            const inPool = viewMode === 'pool';
+            const toObjs = (slots) => slots.map(i => (i !== null && i !== undefined && mediaPool[i]) ? mediaPool[i] : null);
+            const activeObjs = inPool ? toObjs(activeSlots) : null;
+            const savedObjs = inPool ? null : toObjs(savedMain);
+            mediaPool = mediaPool.filter(it => !removed.has(it));
+            removed.forEach(it => poolMap.delete(it._key));
+            const remap = objs => objs.map(o => (o && !removed.has(o)) ? mediaPool.indexOf(o) : null);
+            if (inPool) {
+                activeSlots = remap(activeObjs);
+                updateQueue();
+                fillEmptySlots();
+                activeSlots.forEach((idx, i) => {
+                    const now = idx !== null ? mediaPool[idx] : null;
+                    if (now !== activeObjs[i] && cells[i]) renderCell(cells[i], i);
+                });
+            } else {
+                savedMain = remap(savedObjs);
+            }
+            updateStats();
+        }
+
+        function rebuildLayout() {
+            if (!arenaStarted) return;
+            if (viewMode === 'pool' && prefs.mixFavs) addFavsToPool();
+            const geo = currentGeometry();
+            activeSlots.length = Math.min(activeSlots.length, geo.count);
+            while (activeSlots.length < geo.count) activeSlots.push(null);
+            if (comic.on) activeSlots[0] = null;      // slot 0 belongs to the dojin; its old pool item goes back to the queue
+            heroKinds().forEach((k, i) => { if (k === 'cam' && activeSlots[i] != null && !(P()[activeSlots[i]] && P()[activeSlots[i]].isStream)) activeSlots[i] = null; });      // cam spots hold streams only
+            activeSlots.forEach((idx, i) => { if (streamsCamOnly() && slotKind(i) !== 'cam' && idx != null && P()[idx] && P()[idx].isStream) activeSlots[i] = null; });      // streams already on a normal tile go back to the queue
+	    updateQueue();                 // returns any dropped on-screen items to the queue
+            fillEmptySlots();
+            buildDom(geo);
+            updateStats();
+        }
+        const scheduleRebuild = debounce(rebuildLayout, 80);
+
+        // When entering Spotlight, prefer an animated item as the native-size one
+        function pickAnimatedHero() {
+            if (comic.on) return;
+            const n = heroCount();
+            const isAnim = i => i !== null && P()[i] && isAnimated(P()[i]) && !(streamsCamOnly() && P()[i].isStream);
+            for (let h = 0; h < n; h++) {
+                if (slotKind(h) !== 'media' || isAnim(activeSlots[h])) continue;
+                const k = activeSlots.findIndex((sl, idx) => idx >= n && isAnim(sl));
+                if (k > 0) [activeSlots[h], activeSlots[k]] = [activeSlots[k], activeSlots[h]];
+            }
+        }
+
+        // Promote a tile to native size: it replaces the selected hero, otherwise the heroes take turns
+        function setHero(pos) {
+            const slots = heroKinds().map((k, i) => (k === 'media' ? i : -1)).filter(i => i >= 0);
+            if (!slots.length || pos < heroCount()) return;
+            const slot = (heroTarget !== null && slots.includes(heroTarget)) ? heroTarget : slots[heroRR++ % slots.length];
+            heroTarget = null;
+            [activeSlots[slot], activeSlots[pos]] = [activeSlots[pos], activeSlots[slot]];
+            rebuildLayout();
+        }
+
+        // Move a stream from a fill tile into a cam spot (the stream that was there goes down to the tile)
+        function setCam(pos) {
+            const slots = heroKinds().map((k, i) => (k === 'cam' ? i : -1)).filter(i => i >= 0);
+            if (!slots.length || pos < heroCount()) return;
+            const slot = slots[camRR++ % slots.length];
+            [activeSlots[slot], activeSlots[pos]] = [activeSlots[pos], activeSlots[slot]];
+            rebuildLayout();
+        }
+
+        // Mark which hero the next "Show native size" click should replace
+        function setHeroTarget(pos) {
+            heroTarget = heroTarget === pos ? null : pos;
+            cells.forEach((c, i) => c.classList.toggle('target', i === heroTarget));
+        }
+
+        // ---------- ACTIONS ----------
+        // Click-to-skip: remembers what was skipped so "Back" can restore it
+        function skipSlot(cell, pos, e) {
+            if (comic.on && pos === 0) {      // clicking the comic page turns it: left third = back, otherwise forward
+                const r = cell.getBoundingClientRect();
+                comicTurn(e && e.clientX - r.left < r.width / 3 ? -1 : 1);
+                return;
+            }
+            const idx = activeSlots[pos];
+            if (slotKind(pos) === 'cam') {      // a cam spot cycles to the next stream (the old one goes to the back of the queue)
+                const nx = takeFor(pos);
+                if (nx === null) return;
+                if (idx !== null && P()[idx]) { pushHistory([{ item: P()[idx], pos }]); poolQueue.push(idx); }
+                activeSlots[pos] = nx;
+                updateStats();
+                renderCell(cell, pos);
+                return;
+            }
+            if (idx !== null && P()[idx]) pushHistory([{ item: P()[idx], pos }]);
+            if (viewMode === 'pool') dismissSlot(pos);
+            advanceSlot(cell, pos);
+        }
+
+        function pushHistory(list) {
+            const h = histories[viewMode];
+            h.push({ list });
+            if (h.length > 300) h.shift();
+        }
+
+        // Skip every tile at once (undoable with Back as a single step)
+        function skipAll() {
+            const list = [];
+            activeSlots.forEach((idx, pos) => { if (idx !== null && idx !== undefined && P()[idx]) list.push({ item: P()[idx], pos }); });
+            if (!list.length) return;
+            pushHistory(list);
+            if (viewMode === 'pool') { list.forEach(e => { if (!e.item.isStream) dismissed.add(e.item._key); }); saveDismissed(); }
+            for (let i = 0; i < activeSlots.length; i++) {
+                const kind = slotKind(i);
+                if (kind === 'comic') continue;
+                const nx = takeFor(i);
+                if (kind === 'cam') {                      // cam spots cycle through the streams; with only one stream it stays put
+                    if (nx === null) continue;
+                    if (activeSlots[i] !== null && activeSlots[i] !== undefined) poolQueue.push(activeSlots[i]);
+                }
+                activeSlots[i] = nx;
+            }
+            cells.forEach((c, i) => renderCell(c, i));
+            if (soundKey && !gridContainer.querySelector(`video[data-key="${CSS.escape(soundKey)}"]`)) soundKey = null;
+            updateStats();
+        }
+
+        function goBack() {
+            const h = histories[viewMode];
+            while (h.length) {
+                const e = h.pop();
+                const used = new Set(comic.on ? [0] : []);
+                let restored = false;
+                e.list.forEach(({ item, pos }) => {
+                    const idx = P().indexOf(item);
+                    if (idx < 0 || activeSlots.includes(idx)) return;     // removed, or already back on screen
+                    let p = (pos < activeSlots.length && !used.has(pos)) ? pos : -1;
+                    if (p < 0) { p = activeSlots.findIndex((_, k) => !used.has(k)); if (p < 0) return; }
+                    const cur = activeSlots[p];
+                    if (cur !== null && cur !== undefined) poolQueue.unshift(cur);   // the item that replaced it comes up next
+                    activeSlots[p] = idx;
+                    poolQueue = poolQueue.filter(q => q !== idx);
+                    used.add(p);
+                    if (viewMode === 'pool') dismissed.delete(item._key);
+                    renderCell(cells[p], p);
+                    restored = true;
+                });
+                if (restored) {
+                    if (viewMode === 'pool') saveDismissed();
+                    updateStats();
+                    return;
+                }
+            }
+        }
+
+        // Only one item can have sound at a time; everything else stays muted
+        function syncSound() {
+            gridContainer.querySelectorAll('video').forEach(v => { v.muted = v.dataset.key !== soundKey; });
+            gridContainer.querySelectorAll('button.snd').forEach(b => {
+                const on = b.dataset.key === soundKey;
+                b.classList.toggle('on', on);
+                b.textContent = on ? '🔊 Sound on' : '🔇 Sound off';
+            });
+        }
+        function toggleSound(item) {
+            soundKey = soundKey === item._key ? null : item._key;
+            syncSound();
+        }
+
+        function dismissSlot(pos) {
+            const idx = activeSlots[pos];
+            if (idx !== null && P()[idx] && !P()[idx].isStream) { dismissed.add(P()[idx]._key); saveDismissed(); }      // streams are never filtered out for good
+        }
+
+        function advanceSlot(cell, pos) {
+            activeSlots[pos] = takeFor(pos);
+            updateStats();
+            renderCell(cell, pos);
+            if (soundKey && !gridContainer.querySelector(`video[data-key="${CSS.escape(soundKey)}"]`)) soundKey = null;
+        }
+
+        function toggleFavorite(item, btn) {
+            if (favorites.has(item._key)) {
+                const old = favorites.get(item._key);
+                if (old && String(old._key).startsWith('local:') && old._local) ignoreLocal(old._local);      // keep a loose file from coming straight back
+                favorites.delete(item._key);
+            } else {
+                favorites.set(item._key, { url: item._remoteUrl || item.url, _raw: item._remoteUrl ? (item._raw || '') : (item._raw || item.raw || ''), _local: item._local || undefined, isVideo: item.isVideo, pageUrl: item.pageUrl, _key: item._key, _guess: !!item._guess, sprite: item.sprite || null, isStream: !!item.isStream, streamType: item.streamType || null, name: item.name || '' });
+            }
+            saveFavorites();
+            if (prefs.mixFavs && viewMode === 'pool' && addFavsToPool()) updateQueue();
+            btn.classList.toggle('on', favorites.has(item._key));
+            btn.textContent = favorites.has(item._key) ? '★ Favorited' : '☆ Favorite';
+            updateStats();
+        }
+
+        // A favorite as shown on screen: the saved local copy when there is one, with the original link kept as the fallback
+        function favView(f) {
+            const lu = localUrls.get(f._key);
+            if (!lu) return { ...f, _tried: [] };
+            return { ...f, url: lu, _remoteUrl: f.url, _raw: f._raw || f.url, _guess: false, isVideo: !!f.isVideo || /\.(mp4|webm|mov|m4v)$/i.test(f._local || ''), _tried: [] };
+        }
+
+        function setView(mode, source = 'favs') {
+            if (mode === viewMode && (mode === 'pool' || source === favSource)) return;
+            if (mode === 'favs') {
+                const src = source === 'streams' ? streamView : [...favorites.values()];
+                if (!src.length) { alert(source === 'streams' ? 'No streams to show.' : 'No favorites yet. Hover an item and click ☆ Favorite first.'); return; }
+                if (viewMode === 'pool') savedMain = activeSlots.slice();
+                favPool = source === 'streams' ? src.map(f => ({ ...f, _tried: [] })) : src.map(favView);
+                histories.favs = [];
+                activeSlots = [];
+                viewMode = 'favs';
+                favSource = source;
+            } else {
+                viewMode = 'pool';
+                activeSlots = savedMain.slice();
+            }
+            rebuildLayout();
+        }
+
+        // ---------- CELL RENDERING ----------
+        function renderCell(cell, pos) {
+            killStreams(cell);
+            cell.innerHTML = '';
+            const item = slotItem(pos);
+            const keep = cell._keep; cell._keep = null;
+            cell._item = null; cell._media = null;
+
+            if (!item) {
+                cell.innerHTML = slotKind(pos) === 'cam'
+                    ? '<span style="color:#888;text-align:center;padding:10px">📡 Cam spot: no stream available.<br>Add some under “Live Streams” on the setup page.</span>'
+                    : '<span style="color:#444">No more media</span>';
+                return;
+            }
+
+            let mediaEl;
+            const isVid = item.isVideo || VID_RE.test(item.url);
+            let spriteImg = null;
+            if (keep) {
+                mediaEl = keep;                                  // already loaded and playing: just move it in
+            } else if (item.streamType === 'iframe') {
+                mediaEl = document.createElement('iframe');
+                mediaEl.src = item.url;
+                mediaEl.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media';
+                mediaEl.allowFullscreen = true;
+                mediaEl.referrerPolicy = 'strict-origin-when-cross-origin';      // YouTube embeds need a referrer
+                mediaEl.dataset.crop = '1';
+                mediaEl._item = item;
+                applyCrop(mediaEl, item);
+            } else if (item.sprite) {
+                const { w, h, x, y } = item.sprite;
+                mediaEl = document.createElement('canvas');
+                mediaEl.width = w; mediaEl.height = h;
+                item._dim = { w, h };
+                spriteImg = new Image();
+                spriteImg.referrerPolicy = 'no-referrer';
+                spriteImg.onload = () => mediaEl.getContext('2d').drawImage(spriteImg, x, y, w, h, 0, 0, w, h);
+                spriteImg.src = item.url;
+            } else if (isVid) {
+                mediaEl = document.createElement('video');
+                if (item.isStream) {
+                    mediaEl.dataset.stream = '1';
+                    mediaEl.addEventListener('playing', () => { item._sRetries = 0; });
+                }
+                if (item.streamType === 'hls') attachHls(mediaEl, item.url, () => mediaEl.onerror && mediaEl.onerror());
+                else mediaEl.src = item.url;
+                mediaEl.autoplay = true; mediaEl.loop = true; mediaEl.playsInline = true;
+                mediaEl.muted = soundKey !== item._key;      // sound is OFF unless you turned it on for this one
+                mediaEl.dataset.key = item._key;
+                mediaEl.volume = prefs.volume;
+                if (!mediaEl.muted) mediaEl.play().catch(() => { soundKey = null; mediaEl.muted = true; mediaEl.play().catch(() => {}); setTimeout(syncSound, 0); });
+            } else {
+                mediaEl = document.createElement('img');
+                mediaEl.referrerPolicy = 'no-referrer';
+                if (comic.on && pos === 0) mediaEl.fetchPriority = 'high';      // dojin page jumps ahead of the arena tiles' downloads
+                mediaEl.src = item.url;
+            }
+
+            // Remember native size; if the spotlight item's size changed, re-layout
+            const noteSize = () => {
+                const w = mediaEl.naturalWidth || mediaEl.videoWidth, h = mediaEl.naturalHeight || mediaEl.videoHeight;
+                if (!w || !h) return;
+                const old = item._dim;
+                item._dim = { w, h };
+                if (isSpot() && pos < heroCount() && slotKind(pos) !== 'cam' && (!old || Math.abs(old.w - w) > 1 || Math.abs(old.h - h) > 1)) scheduleRebuild();
+            };
+            mediaEl.addEventListener(isVid ? 'loadedmetadata' : 'load', noteSize);
+
+            mediaEl.onerror = () => {
+                if (item.isStream) { streamDown(cell, pos, item); return; }
+                if (comic.on && pos === 0) {
+                    const nf = nextFallback(item);                                                              // the rewritten URL failed: try the page's own link
+                    if (nf) { item.url = nf; renderCell(cell, pos); return; }
+                    if ((item._retries || 0) < 2) {                                                            // host may be rate-limiting: retry shortly
+                        item._retries = (item._retries || 0) + 1;
+                        setTimeout(() => { if (comic.on && comic.pages[comic.index] === item && cells[0]) renderCell(cells[0], 0); }, 1200 * item._retries);
+                        return;
+                    }
+                    logFailure(item);
+                    cell.innerHTML = '<span style="color:#ef4444">This page failed to load </span>';
+                    const rb = document.createElement('button');
+                    rb.textContent = '↻ Retry';
+                    rb.addEventListener('click', e => { e.stopPropagation(); item._retries = 0; renderCell(cell, pos); });
+                    cell.appendChild(rb);
+                    return;
+                }
+                if (!item.sprite) {                                  // arena item: try the original link before dropping it
+                    const nf = nextFallback(item);
+                    if (nf) { item.url = nf; item.isVideo = VID_RE.test(nf); renderCell(cell, pos); return; }
+                }
+                logFailure(item);
+                if (item._guess && item.url.includes('4cdn.org')) {
+                    const ext = (item.url.match(/\.([a-z0-9]+)(\?|$)/i) || [])[1];
+                    item._tried.push((ext || '').toLowerCase());
+                    const next = ['gif', 'webm', 'mp4', 'png', 'jpg'].find(e => !item._tried.includes(e));
+                    if (next) {
+                        item.url = item.url.replace(/\.[a-z0-9]+(\?|$)/i, '.' + next + '$1');
+                        item.isVideo = VID_RE.test(item.url);
+                        renderCell(cell, pos);
+                        return;
+                    }
+                }
+                if (viewMode === 'pool') failed.add(item._key);
+                advanceSlot(cell, pos);
+            };
+
+            if (spriteImg) spriteImg.onerror = mediaEl.onerror;
+            cell.appendChild(mediaEl);
+            cell._item = item; cell._media = mediaEl;
+            if (keep && keep.tagName === 'VIDEO' && keep.paused) keep.play().catch(() => {});
+            if (item.isStream && item.name) {
+                const tag = document.createElement('div');
+                tag.className = 'stream-tag';
+                tag.innerHTML = '<b>●</b> ';
+                tag.appendChild(document.createTextNode(item.name));
+                cell.appendChild(tag);
+            }
+            if (comic.on && pos === 0) return;      // no tile buttons on the comic page
+
+            const actions = document.createElement('div');
+            actions.className = 'cell-actions';
+
+            const mkBtn = (label, onClick, cls) => {
+                const b = document.createElement('button');
+                b.textContent = label;
+                if (cls) b.className = cls;
+                b.addEventListener('click', e => { e.stopPropagation(); onClick(b); });
+                return b;
+            };
+            const mkLink = (label, href) => {
+                const a = document.createElement('a');
+                a.textContent = label; a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+                a.addEventListener('click', e => e.stopPropagation());
+                return a;
+            };
+
+            const isFav = favorites.has(item._key);
+            actions.appendChild(mkBtn(isFav ? '★ Favorited' : '☆ Favorite', b => toggleFavorite(item, b), isFav ? 'on' : ''));
+            if (item.isStream) actions.appendChild(mkBtn('⏭ Skip', () => skipSlot(cell, pos)));
+            if (item.streamType === 'iframe') {
+                actions.classList.add('always');
+                actions.appendChild(mkBtn('✂ Crop / zoom', () => openCropPanel(cell, mediaEl, item)));
+            }      // hovering an embedded player doesn't reach the tile, so keep the buttons visible
+            if (isVid) {
+                const on = soundKey === item._key;
+                const sb = mkBtn(on ? '🔊 Sound on' : '🔇 Sound off', () => toggleSound(item), 'snd' + (on ? ' on' : ''));
+                sb.dataset.key = item._key;
+                actions.appendChild(sb);
+            }
+            if (pos >= heroCount()) {
+                if (heroKinds().includes('media')) actions.appendChild(mkBtn('⛶ Show native size', () => setHero(pos)));
+                if (item.isStream && hasCam()) actions.appendChild(mkBtn('📺 Move to cam spot', () => setCam(pos)));
+            }
+            if (slotKind(pos) === 'media' && heroKinds().filter(k => k === 'media').length > 1) actions.appendChild(mkBtn('⇄ Replace this one', () => setHeroTarget(pos)));
+            if (item.pageUrl) actions.appendChild(mkLink(item.isStream ? 'Open stream ↗' : 'Open source page ↗', item.pageUrl));
+            if (!item.sprite && !item.isStream) actions.appendChild(mkLink('Open image ↗', item.url));
+            cell.appendChild(actions);
+        }
+        // ---------- LOAD / SETUP ----------
+        loadBtn.addEventListener('click', () => {
+            errorMsg.textContent = '';
+            const rawHTML = htmlInput.value.trim();
+            if (!rawHTML) { errorMsg.textContent = 'Please paste some HTML first!'; return; }
+
+            const { items, title } = extractItems(rawHTML);
+            if (items.length === 0) { errorMsg.textContent = 'No valid media items found in the pasted HTML.'; return; }
+
+            let filteredOut = 0, alreadyInPool = 0, added = 0;
+            const batchId = ++batchSeq;
+            const pending = [];
+            items.forEach(it => {
+                if (isFiltered(it._key)) { filteredOut++; return; }
+                const ex = poolMap.get(it._key);
+                if (ex) { alreadyInPool++; pending.push(ex); return; }
+                it._batches = [];
+                poolMap.set(it._key, it);
+                mediaPool.push(it);
+                pending.push(it);
+                added++;
+            });
+
+            if (added === 0) {
+                batchSeq--;
+                errorMsg.textContent = `Nothing new to add: ${filteredOut} already filtered out, ${alreadyInPool} already in the pool.`;
+                return;
+            }
+
+            // Items shared with an earlier paste belong to both, so removing one paste keeps them
+            pending.forEach(it => { if (!it._batches.includes(batchId)) it._batches.push(batchId); });
+            const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            batches.push({ id: batchId, label: `#${batchId} · ${stamp}${title ? ' · ' + title.slice(0, 50) : ''}` });
+            renderBatches();
+
+            htmlInput.value = '';
+            enterArenaAfterLoad();
+        });
+
+        // Leave the setup page and show the arena with whatever was just added to the pool
+        function enterArenaAfterLoad() {
+            backBtn.style.display = 'inline-block';
+            setupScreen.style.display = 'none';
+            arenaScreen.style.display = 'block';
+
+            if (!arenaStarted) {
+                arenaStarted = true;
+                if (isSpot()) { rebuildLayout(); pickAnimatedHero(); rebuildLayout(); }
+                else rebuildLayout();
+            } else if (viewMode === 'favs') {
+                setView('pool');
+            } else {
+                updateQueue();
+                fillEmptySlots().forEach(i => renderCell(cells[i], i));
+                updateStats();
+            }
+        }
+
+        // ---------- LIVE STREAM BUTTONS ----------
+        const streamInput = $('stream-input');
+        streamInput.value = loadJSON('arenaStreamsText', '');
+
+        $('stream-add-btn').addEventListener('click', () => {
+            errorMsg.textContent = '';
+            const items = parseStreams(streamInput.value);
+            if (!items.length) { errorMsg.textContent = 'No stream URLs found. Put one link per line.'; return; }
+            saveJSON('arenaStreamsText', streamInput.value);
+            const batchId = ++batchSeq;
+            let added = 0;
+            items.forEach(it => {
+                const ex = poolMap.get(it._key);
+                if (ex) { if (!ex._batches.includes(batchId)) ex._batches.push(batchId); return; }
+                it._batches = [batchId];
+                poolMap.set(it._key, it);
+                mediaPool.push(it);
+                added++;
+            });
+            if (!added) { batchSeq--; errorMsg.textContent = 'Those streams are already in the pool.'; return; }
+            const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            batches.push({ id: batchId, label: `#${batchId} · ${stamp} · 📡 ${items.length} stream${items.length > 1 ? 's' : ''}` });
+            renderBatches();
+            enterArenaAfterLoad();
+        });
+
+        $('stream-watch-btn').addEventListener('click', () => {
+            errorMsg.textContent = '';
+            const items = parseStreams(streamInput.value);
+            if (!items.length) { errorMsg.textContent = 'No stream URLs found. Put one link per line.'; return; }
+            saveJSON('arenaStreamsText', streamInput.value);
+            streamView = items;
+            backBtn.style.display = 'inline-block';
+            setupScreen.style.display = 'none';
+            arenaScreen.style.display = 'block';
+            arenaStarted = true;
+            if (viewMode === 'favs' && favSource === 'streams') { viewMode = 'pool'; activeSlots = savedMain.slice(); }      // re-enter with the refreshed list
+            setView('favs', 'streams');
+        });
+		        // ---------- CHATURBATE SEARCH PAGE ----------
+        const cbInput = $('cb-input');
+        const CB_SKIP = new Set([...CB_RESERVED, 'tag', 'tags', 'photo_videos', 'b', 'follow', 'my_collection', 'terms', 'security', 'law_enforcement', 'apps', 'girls', 'couples', 'men', 'trans', 'favorites', 'login', 'signup', 'explore', 'all', 'vr', 'models', 'blog', 'support', 'billing', 'female-cams', 'male-cams', 'couple-cams', 'trans-cams', 'new-cams', 'featured', 'top-cams', 'search']);
+
+        function extractChaturbateRooms(rawHTML) {
+            const doc = new DOMParser().parseFromString(rawHTML, 'text/html');
+            const names = [], seen = new Set();
+            const add = n => {
+                n = (n || '').trim();
+                if (!/^[A-Za-z0-9_]{2,}$/.test(n)) return;
+                const k = n.toLowerCase();
+                if (seen.has(k) || CB_SKIP.has(k)) return;
+                seen.add(k); names.push(n);
+            };
+            doc.querySelectorAll('[data-room]').forEach(el => add(el.getAttribute('data-room')));
+            doc.querySelectorAll('a[href]').forEach(a => {
+                if (!a.querySelector('img') && !a.closest('.roomCard, .room_list_room')) return;     // only room cards, not menu links
+                const m = (a.getAttribute('href') || '').match(/^(?:https?:\/\/(?:www\.)?chaturbate\.com)?\/([A-Za-z0-9_]+)\/?(?:[?#].*)?$/i);
+                if (m) add(m[1]);
+            });
+            return names;
+        }
+
+        function cbStreamItems() {
+            errorMsg.textContent = '';
+            if (!cbInput.value.trim()) { errorMsg.textContent = 'Paste the search page\'s HTML first.'; return null; }
+            const names = extractChaturbateRooms(cbInput.value);
+            if (!names.length) { errorMsg.textContent = 'No Chaturbate rooms found in that HTML. Make sure you copied the page body of a search/tag listing.'; return null; }
+            const site = $('cb-site').value === 'stripchat' ? 'stripchat.com' : 'chaturbate.com';
+            return parseStreams(names.map(n => `${n} | https://${site}/${n}/`).join('\n'));
+        }
+
+        $('cb-add-btn').addEventListener('click', () => {
+            const items = cbStreamItems();
+            if (!items) return;
+            const batchId = ++batchSeq;
+            let added = 0;
+            items.forEach(it => {
+                const ex = poolMap.get(it._key);
+                if (ex) { if (!ex._batches.includes(batchId)) ex._batches.push(batchId); return; }
+                it._batches = [batchId];
+                poolMap.set(it._key, it);
+                mediaPool.push(it);
+                added++;
+            });
+            if (!added) { batchSeq--; errorMsg.textContent = 'Those rooms are already in the pool.'; return; }
+            const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            batches.push({ id: batchId, label: `#${batchId} · ${stamp} · 🔎 ${items.length} Chaturbate rooms` });
+            renderBatches();
+            cbInput.value = '';
+            enterArenaAfterLoad();
+        });
+
+        $('cb-watch-btn').addEventListener('click', () => {
+            const items = cbStreamItems();
+            if (!items) return;
+            streamView = items;
+            backBtn.style.display = 'inline-block';
+            setupScreen.style.display = 'none';
+            arenaScreen.style.display = 'block';
+            arenaStarted = true;
+            if (viewMode === 'favs' && favSource === 'streams') { viewMode = 'pool'; activeSlots = savedMain.slice(); }
+            setView('favs', 'streams');
+            cbInput.value = '';
+        });
+        function renderBatches() {
+            batchList.innerHTML = '';
+            batches.forEach(b => {
+                const total = mediaPool.filter(it => it._batches.includes(b.id)).length;
+                const row = document.createElement('div');
+                row.className = 'batch-row';
+                const lab = document.createElement('span');
+                lab.textContent = `${b.label} — ${total} items`;
+                lab.title = lab.textContent;
+                const btn = document.createElement('button');
+                btn.className = 'secondary';
+                btn.textContent = 'Remove';
+                btn.addEventListener('click', () => removeBatch(b.id));
+                row.append(lab, btn);
+                batchList.appendChild(row);
+            });
+        }
+
+        // Remove one pasted HTML body: drops its items from the pool (unless another paste also has them)
+        function removeBatch(id) {
+            const b = batches.find(x => x.id === id);
+            if (!b) return;
+            const mine = mediaPool.filter(it => it._batches.includes(id));
+            const unique = mine.filter(it => it._batches.length === 1).length;
+            if (!confirm(`Remove "${b.label}"?\n${unique} item(s) will be taken out of the pool.`)) return;
+
+            // Snapshot on-screen items as objects, since removing items shifts pool indices
+            const toObjs = (slots, arr) => slots.map(i => (i !== null && arr[i]) ? arr[i] : null);
+            const inPool = viewMode === 'pool';
+            const activeObjs = inPool ? toObjs(activeSlots, mediaPool) : null;
+            const savedObjs = inPool ? null : toObjs(savedMain, mediaPool);
+
+            const removed = new Set();
+            mine.forEach(it => {
+                it._batches = it._batches.filter(x => x !== id);
+                if (!it._batches.length) removed.add(it);
+            });
+            mediaPool = mediaPool.filter(it => !removed.has(it));
+            removed.forEach(it => poolMap.delete(it._key));
+            batches = batches.filter(x => x.id !== id);
+
+            const remap = objs => objs.map(o => (o && !removed.has(o)) ? mediaPool.indexOf(o) : null);
+            if (inPool) {
+                activeSlots = remap(activeObjs);
+                updateQueue();
+                fillEmptySlots();
+                activeSlots.forEach((idx, i) => {
+                    const now = idx !== null ? mediaPool[idx] : null;
+                    if (now !== activeObjs[i] && cells[i]) renderCell(cells[i], i);
+                });
+            } else {
+                savedMain = remap(savedObjs);
+            }
+            updateStats();
+            renderBatches();
+        }
+
+        function showSetup() {
+            arenaScreen.style.display = 'none';
+            setupScreen.style.display = 'flex';
+            errorMsg.textContent = '';
+            updateStats();
+            renderBatches();
+            renderShelf();
+        }
+
+        resetBtn.addEventListener('click', showSetup);
+        backBtn.addEventListener('click', () => { setupScreen.style.display = 'none'; arenaScreen.style.display = 'block'; });
+        favViewBtn.addEventListener('click', () => setView(viewMode === 'favs' ? 'pool' : 'favs'));
+
+        // Open the favorites straight from the setup page, no paste needed
+        setupFavsBtn.addEventListener('click', () => {
+            if (!favorites.size) { errorMsg.textContent = 'No favorites yet. Hover an item in the arena and click ☆ Favorite first.'; return; }
+            errorMsg.textContent = '';
+            setupScreen.style.display = 'none';
+            arenaScreen.style.display = 'block';
+            backBtn.style.display = 'inline-block';
+            if (!arenaStarted) arenaStarted = true;
+            if (viewMode !== 'favs' || favSource !== 'favs') setView('favs', 'favs');
+            else rebuildLayout();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            dismissed.clear(); failed.clear(); saveDismissed();
+            if (arenaStarted) { updateQueue(); fillEmptySlots().forEach(i => renderCell(cells[i], i)); }
+            updateStats();
+            errorMsg.textContent = 'Filtered-out history cleared.';
+        });
+
+        $('copy-failed-btn').addEventListener('click', () => {
+            const txt = [...failedLog.entries()].map(([k, v]) => `${k}\n  original: ${v.raw}\n  tried: ${v.tried.join('  |  ')}`).join('\n\n');
+            if (!txt) { errorMsg.textContent = 'No failed loads recorded yet.'; return; }
+            (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(
+                () => { errorMsg.textContent = `Copied ${failedLog.size} failed URL(s).`; },
+                () => { prompt('Copy these:', txt); });
+        });
+
+        // ---------- LAYOUT / CAM CONTROLS ----------
+        const camArSelect = $('cam-ar'), comicCamsSelect = $('comic-cams');
+
+        // Keep the cam-related controls in step with the current layout
+        function syncCamUi() {
+            camArSelect.value = prefs.camAR;
+            camArSelect.style.display = hasCam() ? '' : 'none';
+            comicCamsSelect.value = String(Math.min(2, prefs.dojinCams | 0));
+        }
+
+        layoutSelect.value = prefs.layout;
+        fitSelect.value = curFit();
+        syncCamUi();
+
+        // ---------- LOCAL FOLDER (Chrome / Edge) + EXPORT / IMPORT ----------
+        // Folder layout:  arena-favorites.json, arena-session.json, favorites/<media files>
+        const FS_OK = typeof window.showDirectoryPicker === 'function';
+        let dirHandle = null, favDir = null, pendingHandle = null, syncing = false, syncAgain = false;
+        const localUrls = new Map();            // favorite key -> blob: url of its saved copy
+        const saveTried = new Set();            // keys whose download already failed this session (retried on manual Sync)
+        const folderBtn = $('folder-btn'), folderSyncBtn = $('folder-sync-btn'), folderStatus = $('folder-status');
+        const setStatus = t => { folderStatus.textContent = t; };
+        const scheduleFolderSync = debounce(() => syncToFolder(false), 1500);
+        function folderDirty() { if (dirHandle) scheduleFolderSync(); }
+
+        const idb = {
+            open: () => new Promise((res, rej) => { const r = indexedDB.open('arenaFolderV1', 1); r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }),
+            async get(k) { try { const db = await this.open(); return await new Promise(res => { const q = db.transaction('h').objectStore('h').get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(null); }); } catch (e) { return null; } },
+            async set(k, v) { try { const db = await this.open(); await new Promise(res => { const t = db.transaction('h', 'readwrite'); t.objectStore('h').put(v, k); t.oncomplete = res; t.onerror = res; }); } catch (e) {} }
+        };
+
+        const hashKey = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(16); };
+        function pickExt(url, type) {
+            const m = /\.(jpe?g|png|gif|webp|avif|bmp|mp4|webm|mov|m4v)(?:[?#]|$)/i.exec(url || '');
+            if (m) return m[1].toLowerCase().replace('jpeg', 'jpg');
+            const t = (type || '').split('/')[1];
+            return t ? t.split('+')[0].replace('jpeg', 'jpg') : 'bin';
+        }
+        async function readJSONFile(dir, name) {
+            try { const f = await (await dir.getFileHandle(name)).getFile(); return JSON.parse(await f.text()); } catch (e) { return null; }
+        }
+        async function writeJSONFile(dir, name, obj) {
+            const w = await (await dir.getFileHandle(name, { create: true })).createWritable();
+            await w.write(JSON.stringify(obj, null, 1)); await w.close();
+        }
+
+        // Download one favorite's media into favorites/. Needs the host to allow cross-origin reads; otherwise the link stays as-is.
+        const TYPE_EXT = { 'image/jpeg':'jpg', 'image/png':'png', 'image/gif':'gif', 'image/webp':'webp', 'image/avif':'avif', 'image/bmp':'bmp', 'video/mp4':'mp4', 'video/webm':'webm', 'video/quicktime':'mov', 'video/x-m4v':'m4v' };
+        const SAVE_EXT_RE = /\.(jpe?g|png|gif|webp|avif|bmp|mp4|webm|mov|m4v)(?:[?#]|$)/i;
+        const saveWhy = new Map();              // key -> "host reason" for favorites that could not be saved (shown in the status line)
+        function saveCandidates(f) {
+            // Discord previews carry resize/format params that would save a shrunken still instead of the real file: strip them
+            const unresize = u => { if (!/discord(app)?\.(com|net)/i.test(u)) return u; try { const x = new URL(u); ['format', 'width', 'height', 'quality', 'animated'].forEach(k => x.searchParams.delete(k)); return x.toString(); } catch (e) { return u; } };
+            const base = [f.url, f._raw, f._raw && f._raw.split('?')[0]].filter(u => u && /^https?:/i.test(u)).map(unresize);
+            const out = [];
+            const add = u => { if (u && !out.includes(u)) out.push(u); };
+            base.forEach(u => {
+                add(u);
+                // Discord serves the same attachment from two hosts
+                if (/^https?:\/\/cdn\.discordapp\.com\//i.test(u)) add(u.replace(/^https?:\/\/cdn\.discordapp\.com\//i, 'https://media.discordapp.net/'));
+                else if (/^https?:\/\/media\.discordapp\.net\/attachments\//i.test(u)) add(u.replace(/^https?:\/\/media\.discordapp\.net\//i, 'https://cdn.discordapp.com/'));
+            });
+            // 4chan: when the extension was only a guess made from a thumbnail, try the real possibilities
+            if (f._guess) base.filter(u => /4cdn\.org/i.test(u)).forEach(u => ['webm', 'gif', 'mp4', 'png', 'jpg'].forEach(e => add(u.replace(/\.[a-z0-9]+(\?|$)/i, '.' + e + '$1'))));
+            return out;
+        }
+        async function saveFavFile(f) {
+            for (const u of saveCandidates(f)) {
+                let host = ''; try { host = new URL(u).hostname; } catch (e) {}
+                try {
+                    const res = await fetch(u, { referrerPolicy: 'no-referrer' });
+                    if (!res.ok || !res.body) { saveWhy.set(f._key, `${host} replied ${res.status}${res.status === 404 || res.status === 403 ? ' (link may have expired)' : ''}`); continue; }
+                    let type = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+                    if (!/^(image|video)\//.test(type)) {
+                        // some hosts label files as generic binary: accept those when the link itself says it is an image/video
+                        if (!(/^(|application\/octet-stream|binary\/octet-stream)$/.test(type) && SAVE_EXT_RE.test(u))) { saveWhy.set(f._key, `${host} did not return an image/video`); continue; }
+                        type = '';
+                    }
+                    const name = hashKey(f._key) + '.' + (TYPE_EXT[type] || pickExt(u, type));
+                    const fh = await favDir.getFileHandle(name, { create: true });
+                    const w = await fh.createWritable();
+                    await res.body.pipeTo(w);                       // streams straight to disk (no size limit, no big blob in memory); an interrupted download writes nothing
+                    const file = await fh.getFile();
+                    if (file.size < 200) { try { await favDir.removeEntry(name); } catch (e) {} saveWhy.set(f._key, `${host} returned an empty file`); continue; }
+                    f._local = name;
+                    if (type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(name)) f.isVideo = true;
+                    localUrls.set(f._key, URL.createObjectURL(file));
+                    saveWhy.delete(f._key);
+                    return true;
+                } catch (e) { saveWhy.set(f._key, `${host} blocked the download (CORS) or the network failed`); }
+            }
+            console.warn('Arena: could not save', f._key, saveWhy.get(f._key));
+            return false;
+        }
+
+        async function loadLocalUrls() {
+            if (!favDir) return;
+            for (const f of favorites.values()) {
+                if (!f._local || localUrls.has(f._key)) continue;
+                try { const file = await (await favDir.getFileHandle(f._local)).getFile(); localUrls.set(f._key, URL.createObjectURL(file)); }
+                catch (e) { delete f._local; }      // file went missing: it will be downloaded again
+            }
+        }
+
+        // Loose files: any image/video you drop into favorites/ becomes a favorite automatically
+        const MEDIA_FILE_RE = /\.(jpe?g|png|gif|webp|avif|bmp|mp4|webm|mov|m4v)$/i;
+        const ARENA_SAVED_RE = /^[0-9a-f]{6,8}\.[a-z0-9]+$/i;          // names Arena itself gives to downloaded favorites
+        const ignoredLocal = new Set(loadJSON('arenaIgnoredLocalV1', []));
+        function ignoreLocal(name) { ignoredLocal.add(name); saveJSON('arenaIgnoredLocalV1', [...ignoredLocal]); }
+        async function scanFolderForNew() {
+            if (!favDir) return 0;
+            let added = 0, removed = 0;
+            try {
+                const known = new Set([...favorites.values()].map(f => f._local).filter(Boolean));
+                for await (const [name, h] of favDir.entries()) {
+                    if (h.kind !== 'file' || !MEDIA_FILE_RE.test(name) || known.has(name) || ignoredLocal.has(name) || ARENA_SAVED_RE.test(name)) continue;
+                    const key = 'local:' + name;
+                    if (favorites.has(key)) continue;
+                    try { localUrls.set(key, URL.createObjectURL(await h.getFile())); } catch (e) { continue; }
+                    favorites.set(key, { url: name, _raw: '', _local: name, isVideo: /\.(mp4|webm|mov|m4v)$/i.test(name), pageUrl: null, _key: key, name });
+                    added++;
+                }
+                // a loose file that was deleted from the folder: drop its favorite
+                for (const [key, f] of [...favorites]) {
+                    if (!key.startsWith('local:')) continue;
+                    let gone = !f._local;
+                    if (!gone) { try { await favDir.getFileHandle(f._local); } catch (e) { gone = true; } }
+                    if (gone) { favorites.delete(key); localUrls.delete(key); removed++; }
+                }
+            } catch (e) { console.warn('Arena folder scan failed', e); }
+            if (added || removed) {
+                saveJSON('arenaFavoritesV1', [...favorites.values()]);
+                if (added && prefs.mixFavs && viewMode === 'pool' && arenaStarted && addFavsToPool()) updateQueue();
+                updateStats();
+            }
+            return added;
+        }
+
+        function mergeFavData(data) {
+            let added = 0;
+            if (data && Array.isArray(data.favorites)) data.favorites.forEach(f => {
+                if (!f || !f._key) return;
+                const mine = favorites.get(f._key);
+                if (!mine) { favorites.set(f._key, f); added++; }
+                else if (f._local && !mine._local) mine._local = f._local;
+            });
+            if (data && Array.isArray(data.dismissed)) data.dismissed.forEach(k => dismissed.add(k));
+            saveJSON('arenaFavoritesV1', [...favorites.values()]);
+            saveJSON('arenaDismissedV1', [...dismissed]);
+            return added;
+        }
+
+        async function syncToFolder(retryFailed) {
+            if (!dirHandle || !favDir) return;
+            if (syncing) { syncAgain = true; return; }
+            syncing = true;
+            try {
+                await scanFolderForNew();
+                if (retryFailed) saveTried.clear();
+                const todo = [...favorites.values()].filter(f => !(f._local && localUrls.has(f._key)) && !f.isStream && !f.sprite && !saveTried.has(f._key) && /^https?:/i.test(f.url || ''));
+                let done = 0, bad = 0;
+                for (const f of todo) {
+                    setStatus(`saving ${done + bad + 1}/${todo.length}…`);
+                    if (!favorites.has(f._key)) continue;
+                    if (await saveFavFile(f)) done++; else { bad++; saveTried.add(f._key); }
+                }
+                saveJSON('arenaFavoritesV1', [...favorites.values()]);
+                const stamp = new Date().toISOString();
+                await writeJSONFile(dirHandle, 'arena-favorites.json', { saved: stamp, favorites: [...favorites.values()] });
+                await writeJSONFile(dirHandle, 'arena-session.json', { saved: stamp, dismissed: [...dismissed], prefs, poolSize: mediaPool.length });
+                const have = [...favorites.values()].filter(f => localUrls.has(f._key)).length;
+                const why = [...saveWhy].filter(([k]) => favorites.has(k) && !localUrls.has(k));
+                const hosts = {}; why.forEach(([, v]) => { const h = v.split(' ')[0]; hosts[h] = (hosts[h] || 0) + 1; });
+                const hostTxt = Object.entries(hosts).map(([h, n]) => `${h} \u00d7${n}`).join(', ');
+                setStatus(`📁 ${dirHandle.name}: ${have}/${favorites.size} favorites saved as files` + (why.length ? ` (${why.length} not saved: ${hostTxt}; links kept. Hover for details)` : ''));
+                folderStatus.title = why.map(([k, v]) => `${k}\n  ${v}`).join('\n\n');
+            } catch (e) {
+                console.warn('Arena folder sync failed', e);
+                setStatus('⚠ folder sync failed (see console)');
+            } finally {
+                syncing = false;
+                if (syncAgain) { syncAgain = false; scheduleFolderSync(); }
+            }
+        }
+
+        async function connectFolder(h, ask) {
+            try {
+                const opts = { mode: 'readwrite' };
+                let ok = (await h.queryPermission(opts)) === 'granted';
+                if (!ok && ask) ok = (await h.requestPermission(opts)) === 'granted';
+                if (!ok) return false;
+                dirHandle = h; pendingHandle = null;
+                favDir = await h.getDirectoryHandle('favorites', { create: true });
+                await idb.set('dir', h);
+                setStatus('loading folder…');
+                const added = mergeFavData(await readJSONFile(h, 'arena-favorites.json'));
+                const sess = await readJSONFile(h, 'arena-session.json');
+                if (sess) mergeFavData({ dismissed: sess.dismissed });
+                await loadLocalUrls();
+                const loose = await scanFolderForNew();
+                folderBtn.textContent = '📁 Change folder';
+                folderSyncBtn.style.display = '';
+                updateStats();
+                if (added || loose) setStatus(`pulled ${added + loose} favorite(s) from the folder`);
+                await syncToFolder(false);
+                return true;
+            } catch (e) { console.warn('Arena folder connect failed', e); setStatus('⚠ could not open folder'); return false; }
+        }
+
+        if (!FS_OK) {
+            folderBtn.style.display = 'none';
+        } else {
+            folderBtn.addEventListener('click', async () => {
+                try {
+                    if (pendingHandle) { if (await connectFolder(pendingHandle, true)) return; }
+                    const h = await window.showDirectoryPicker({ mode: 'readwrite' });
+                    await connectFolder(h, true);
+                } catch (e) { /* picker cancelled */ }
+            });
+            folderSyncBtn.addEventListener('click', () => syncToFolder(true));
+            (async () => {
+                const h = await idb.get('dir');
+                if (!h) return;
+                if (!(await connectFolder(h, false))) { pendingHandle = h; folderBtn.textContent = '📁 Reconnect folder'; setStatus('click to reconnect your save folder'); }
+            })();
+        }
+
+        // Dropped a file into the folder while Arena was open? Pick it up when you return to this tab
+        window.addEventListener('focus', debounce(() => { if (dirHandle && favDir) scanFolderForNew().then(n => { if (n) folderDirty(); }); }, 600));
+
+        // Export / import (works in every browser)
+        $('fav-export-btn').addEventListener('click', () => {
+            const blob = new Blob([JSON.stringify({ saved: new Date().toISOString(), favorites: [...favorites.values()], dismissed: [...dismissed] }, null, 1)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob); a.download = 'arena-favorites.json';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        });
+        $('fav-import-btn').addEventListener('click', () => $('fav-import-file').click());
+        $('fav-import-file').addEventListener('change', async ev => {
+            const file = ev.target.files[0]; ev.target.value = '';
+            if (!file) return;
+            try {
+                const added = mergeFavData(JSON.parse(await file.text()));
+                saveFavorites(); updateStats();
+                alert(`Imported ${added} new favorite(s).`);
+            } catch (e) { alert('That file could not be read as an Arena favorites export.'); }
+        });
+
+        // "Mix favorites into pool" box
+        const mixFavsBox = $('mix-favs');
+        mixFavsBox.checked = !!prefs.mixFavs;
+        mixFavsBox.addEventListener('change', () => {
+            prefs.mixFavs = mixFavsBox.checked;
+            savePrefs();
+            if (prefs.mixFavs) {
+                if (!favorites.size) { alert('No favorites yet. Hover an item and click ☆ Favorite first.'); }
+                if (viewMode === 'pool') { addFavsToPool(); updateQueue(); updateStats(); }
+            } else {
+                removeFavsFromPool();
+            }
+        });
+
+        // "Streams in cam spots only" box: show the saved state on load and keep it working
+        const camOnlyBox = $('cam-only');
+        camOnlyBox.checked = !!prefs.camOnly;
+        camOnlyBox.addEventListener('change', () => {
+            prefs.camOnly = camOnlyBox.checked;
+            savePrefs();
+            rebuildLayout();
+        });
+
+        layoutSelect.addEventListener('change', () => {
+            prefs.layout = layoutSelect.value;
+            heroTarget = null; heroRR = 0; camRR = 0;
+            fitSelect.value = curFit();
+            savePrefs();
+            syncCamUi();
+            if (isSpot()) { rebuildLayout(); pickAnimatedHero(); }
+            rebuildLayout();
+        });
+
+        camArSelect.addEventListener('change', () => {
+            prefs.camAR = camArSelect.value;
+            savePrefs();
+            rebuildLayout();
+        });
+
+        comicCamsSelect.addEventListener('change', () => {
+            prefs.dojinCams = parseInt(comicCamsSelect.value, 10) || 0;
+            savePrefs();
+            syncCamUi();
+            rebuildLayout();
+        });
+
+        fitSelect.addEventListener('change', () => {
+            prefs[isSpot() ? 'fitSpot' : 'fit'] = fitSelect.value;
+            savePrefs();
+            rebuildLayout();
+        });
+
+        window.addEventListener('resize', debounce(() => { if (arenaStarted) rebuildLayout(); }, 250));
+
+        // ================= COMIC READER =================
+        function slotItem(pos) {
+            if (comic.on && pos === 0) return comic.pages[comic.index] || null;
+            const idx = activeSlots[pos];
+            return idx !== null && idx !== undefined ? (P()[idx] || null) : null;
+        }
+
+        function updateComicUi() { comicPos.textContent = `${comic.index + 1} / ${comic.pages.length}`; }
+
+        function preloadPages() {
+            for (let i = comic.index; i <= comic.index + 2; i++) {
+                const pg = comic.pages[i];
+                if (!pg || pg._pre) continue;
+                pg._pre = true;
+                const im = new Image();
+                im.referrerPolicy = 'no-referrer';
+                im.fetchPriority = 'low';
+                im.onload = () => { pg._dim = { w: im.naturalWidth, h: im.naturalHeight }; };
+                im.src = pg.url;
+            }
+        }
+
+        function comicTurn(d) {
+            const n = Math.max(0, Math.min(comic.pages.length - 1, comic.index + d));
+            if (n === comic.index) return;
+            comic.index = n;
+            saveJSON(comic.id, n);
+            updateComicUi();
+            preloadPages();
+            const geo = currentGeometry();
+            // Same page size => only swap the comic page; otherwise rebuild so the fill tiles re-flow
+            if (geo.kind === 'spot' && geo.heroes[0].hw + 'x' + geo.heroes[0].hh === lastHeroSize && cells[0]) renderCell(cells[0], 0);
+            else rebuildLayout();
+        }
+
+        function startComic(pages, title) {
+            if (!pages.length) { comicStatus.textContent = 'No images found in that dojin.'; return; }
+            const clean = pages.map(pg => ({ name: '', ...pg, _key: pg._key || pg.url, isVideo: false, _tried: [], _guess: false, pageUrl: null }));
+            const t = title || 'Dojin';
+            const id = `arenaComicPos:${t}:${clean.length}`;
+            const entry = { id, title: t, pages: clean };
+            const i = shelf.findIndex(x => x.id === id);
+            if (i >= 0) { revokePages(shelf[i]); shelf[i] = entry; } else shelf.push(entry);
+            openDojin(entry);
+        }
+
+        function openDojin(entry) {
+            lastDojin = entry;
+            comic.pages = entry.pages;
+            comic.title = entry.title;
+            comic.id = entry.id;
+            comic.index = Math.min(loadJSON(comic.id, 0), entry.pages.length - 1);      // resume where you left off
+            comic.on = true;
+            heroTarget = null;
+            layoutSelect.value = 'spot1';
+            layoutSelect.disabled = true;
+            fitSelect.value = curFit();
+            arenaStarted = true;
+            backBtn.style.display = 'inline-block';
+            comicBar.style.display = 'flex';
+            dojinBtn.style.display = 'none';
+            setupScreen.style.display = 'none';
+            arenaScreen.style.display = 'block';
+            comicStatus.textContent = '';
+            syncCamUi();
+            rebuildLayout();
+            updateComicUi();
+            preloadPages();
+            renderShelf();
+        }
+
+        // Close the dojin spotlight and go back to the normal arena; the dojin stays on the shelf
+        function exitComic() {
+            comic.on = false;
+            comic.pages = [];
+            comic.id = '';
+            layoutSelect.value = prefs.layout;
+            layoutSelect.disabled = false;
+            fitSelect.value = curFit();
+            comicBar.style.display = 'none';
+            dojinBtn.style.display = shelf.length ? 'inline-block' : 'none';
+            syncCamUi();
+            rebuildLayout();
+            renderShelf();
+        }
+
+        function revokePages(entry) {
+            entry.pages.forEach(pg => { if (/^blob:/.test(pg.url)) URL.revokeObjectURL(pg.url); });
+        }
+
+        function removeDojin(entry) {
+            if (!confirm(`Remove "${entry.title}" (${entry.pages.length} pages) from the shelf?`)) return;
+            if (comic.on && comic.id === entry.id) exitComic();
+            revokePages(entry);
+            shelf.splice(shelf.indexOf(entry), 1);
+            if (lastDojin === entry) lastDojin = shelf[shelf.length - 1] || null;
+            dojinBtn.style.display = !comic.on && shelf.length ? 'inline-block' : 'none';
+            renderShelf();
+        }
+
+        function renderShelf() {
+            shelfEl.innerHTML = '';
+            shelf.forEach(entry => {
+                const row = document.createElement('div');
+                row.className = 'batch-row' + (comic.on && comic.id === entry.id ? ' reading' : '');
+                const lab = document.createElement('span');
+                const pos = Math.min(loadJSON(entry.id, 0), entry.pages.length - 1) + 1;
+                lab.textContent = `📖 ${entry.title} — page ${pos} / ${entry.pages.length}`;
+                lab.title = lab.textContent;
+                const read = document.createElement('button');
+                read.className = 'secondary';
+                read.textContent = comic.on && comic.id === entry.id ? 'Reading' : 'Read';
+                read.addEventListener('click', () => openDojin(entry));
+                const del = document.createElement('button');
+                del.className = 'secondary';
+                del.textContent = 'Remove';
+                del.addEventListener('click', () => removeDojin(entry));
+                row.append(lab, read, del);
+                shelfEl.appendChild(row);
+            });
+        }
+
+        // Pasted HTML: pages in document order (not the arena's multi-pass order)
+        function extractComicPages(rawHTML) {
+            lastRawHTML = rawHTML;
+            const doc = new DOMParser().parseFromString(rawHTML, 'text/html');
+            const pages = [], seen = new Set();
+            const add = u => {
+                const c = upscaleMediaUrl(u);
+                if (!isValidMediaUrl(c) || VID_RE.test(c)) return;
+                const k = fileKey(c);
+                if (!seen.has(k)) { seen.add(k); pages.push({ url: c, raw: rawUrl(u), _key: k }); }
+            };
+            doc.querySelectorAll('a[href], img').forEach(el => {
+                if (el.tagName === 'A') {
+                    const h = el.getAttribute('href') || '';
+                    if (IMG_RE.test(h)) add(h);
+                } else {
+                    const a = el.closest('a[href]');
+                    if (a && IMG_RE.test(a.getAttribute('href') || '')) return;     // the link already holds the full-size file
+                    add(el.getAttribute('data-src') || el.getAttribute('src'));
+                }
+            });
+            return { pages, title: (doc.title || '').trim() };
+        }
+
+        const IMG_FILE_RE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
+        const natural = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+
+        function loadComicFiles(fileList) {
+            const files = [...fileList].filter(f => /^image\//.test(f.type) || IMG_FILE_RE.test(f.name));
+            files.sort((a, b) => natural(a.webkitRelativePath || a.name, b.webkitRelativePath || b.name));
+            const title = files[0] && files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : (files[0] ? files[0].name.replace(/\d+\.\w+$/, '') : '');
+            startComic(files.map(f => ({ url: URL.createObjectURL(f), name: f.name })), title);
+        }
+
+        const loadScript = src => new Promise((res, rej) => {
+            const sc = document.createElement('script');
+            sc.src = src; sc.onload = res; sc.onerror = rej;
+            document.head.appendChild(sc);
+        });
+
+        async function loadComicZip(file) {
+            try {
+                comicStatus.textContent = 'Opening archive…';
+                if (!window.JSZip) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+                const zip = await JSZip.loadAsync(file);
+                const entries = Object.values(zip.files).filter(f => !f.dir && IMG_FILE_RE.test(f.name)).sort((a, b) => natural(a.name, b.name));
+                const pages = [];
+                for (let i = 0; i < entries.length; i++) {
+                    comicStatus.textContent = `Loading page ${i + 1} / ${entries.length}…`;
+                    pages.push({ url: URL.createObjectURL(await entries[i].async('blob')), name: entries[i].name });
+                }
+                startComic(pages, file.name.replace(/\.(cbz|zip)$/i, ''));
+            } catch (err) {
+                comicStatus.textContent = 'Could not open that archive (it needs an internet connection the first time to load the zip library).';
+            }
+        }
+
+        $('comic-html-btn').addEventListener('click', () => {
+            const raw = dojinInput.value.trim();
+            if (!raw) { comicStatus.textContent = 'Paste the dojin\'s HTML into the box above first.'; return; }
+            const { pages, title } = extractComicPages(raw);
+            startComic(pages, title);
+            if (pages.length) dojinInput.value = '';
+        });
+        $('comic-files-btn').addEventListener('click', () => $('comic-files').click());
+        $('comic-folder-btn').addEventListener('click', () => $('comic-folder').click());
+        $('comic-zip-btn').addEventListener('click', () => $('comic-zip').click());
+        $('comic-files').addEventListener('change', e => { loadComicFiles(e.target.files); e.target.value = ''; });
+        $('comic-folder').addEventListener('change', e => { loadComicFiles(e.target.files); e.target.value = ''; });
+        $('comic-zip').addEventListener('change', e => { if (e.target.files[0]) loadComicZip(e.target.files[0]); e.target.value = ''; });
+        $('comic-prev').addEventListener('click', () => comicTurn(-1));
+        $('comic-next').addEventListener('click', () => comicTurn(1));
+        $('comic-exit').addEventListener('click', exitComic);
+        dojinBtn.addEventListener('click', () => { const e = lastDojin || shelf[shelf.length - 1]; if (e) openDojin(e); });
+
+        // Drop images or a .cbz/.zip onto the Dojin box
+        const dojinBox = $('comic-box');
+        ['dragenter', 'dragover'].forEach(ev => dojinBox.addEventListener(ev, e => { e.preventDefault(); dojinBox.classList.add('drag'); }));
+        ['dragleave', 'drop'].forEach(ev => dojinBox.addEventListener(ev, e => { e.preventDefault(); dojinBox.classList.remove('drag'); }));
+        dojinBox.addEventListener('drop', e => {
+            const files = [...e.dataTransfer.files];
+            if (!files.length) return;
+            const z = files.find(f => /\.(cbz|zip)$/i.test(f.name));
+            if (z) loadComicZip(z); else loadComicFiles(files);
+        });
+        comicPos.addEventListener('click', () => {
+            const v = parseInt(prompt(`Go to page (1–${comic.pages.length}):`, comic.index + 1), 10);
+            if (v) comicTurn(v - 1 - comic.index);
+        });
+
+        undoBtn.addEventListener('click', goBack);
+        skipAllBtn.addEventListener('click', skipAll);
+        volumeSlider.value = prefs.volume;
+        volumeSlider.addEventListener('input', () => {
+            prefs.volume = parseFloat(volumeSlider.value);
+            gridContainer.querySelectorAll('video').forEach(v => { v.volume = prefs.volume; });
+            savePrefs();
+        });
+        // ---------- VIDEO / STREAM PICKER ----------
+        const pickerEl = $('picker'), pickBtn = $('pick-btn'), pkTarget = $('pk-target'), pkKind = $('pk-kind'), pkFilter = $('pk-filter'), pkList = $('pk-list'), pkNote = $('pk-note');
+
+        const isVideoish = it => !it.isStream && (it.isVideo || VID_RE.test(srcUrl(it)) || GIF_RE.test(srcUrl(it)) || LOCAL_ANIM_RE.test(it._local || ''));
+        function itemLabel(it) {
+            if (it.name) return it.name;
+            try { const p = decodeURIComponent(new URL(it.url).pathname.split('/').filter(Boolean).pop() || ''); if (p) return p; } catch (e) {}
+            return it.url.slice(0, 60);
+        }
+        function itemBadge(it) {
+            if (it.isStream) return ({ hls: 'HLS', iframe: 'embed', video: 'video', img: 'MJPEG' })[it.streamType] || 'stream';
+            return (GIF_RE.test(srcUrl(it)) || /\.gif$/i.test(it._local || '')) ? 'GIF' : 'video';
+        }
+
+        // Spots an item can be sent to: cam spots and native-size spotlights, or the next fill tile
+        function pkTargets() {
+            const kinds = heroKinds(), out = [];
+            let cams = 0, spots = 0;
+            kinds.forEach((k, i) => {
+                if (k === 'cam') out.push({ v: String(i), label: `Cam spot ${++cams}` });
+                else if (k === 'media') out.push({ v: String(i), label: `Spotlight ${++spots}` });
+            });
+            out.push({ v: 'tile', label: kinds.length ? 'Next fill tile' : 'Next tile' });
+            return out;
+        }
+        function refreshPkTargets() {
+            const sig = heroKinds().join() + '|' + activeSlots.length;
+            if (sig === pkSig && pkTarget.options.length) return;       // don't rebuild while the dropdown may be open
+            pkSig = sig;
+            const prev = pkTarget.value, opts = pkTargets();
+            pkTarget.innerHTML = '';
+            opts.forEach(o => { const op = document.createElement('option'); op.value = o.v; op.textContent = o.label; pkTarget.appendChild(op); });
+            const def = opts.find(o => o.v !== 'tile' && slotKind(+o.v) === 'cam') || opts[0];
+            pkTarget.value = opts.some(o => o.v === prev) ? prev : def.v;
+        }
+        const pkSay = msg => { pkNote.textContent = msg || ''; };
+
+        function renderPicker() {
+            if (!pickerOpen) return;
+            refreshPkTargets();
+            const tv = pkTarget.value;
+            const toCam = tv !== 'tile' && slotKind(+tv) === 'cam';
+            pkKind.disabled = toCam;                                       // cam spots only take live streams
+            const kind = toCam ? 'streams' : pkKind.value;
+            const q = pkFilter.value.trim().toLowerCase();
+            const where = new Map();
+            activeSlots.forEach((idx, pos) => { if (idx !== null && idx !== undefined) where.set(idx, pos); });
+
+            const rows = [];
+            P().forEach((it, idx) => {
+                const ok = kind === 'streams' ? it.isStream : kind === 'videos' ? isVideoish(it) : (it.isStream || isVideoish(it));
+                if (!ok) return;
+                const label = itemLabel(it);
+                if (q && !label.toLowerCase().includes(q)) return;
+                rows.push({ it, idx, label });
+            });
+            rows.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
+
+            const keep = pkList.scrollTop;
+            pkList.innerHTML = '';
+            rows.slice(0, 400).forEach(({ it, idx, label }) => {
+                const row = document.createElement('div');
+                row.className = 'pk-row' + (where.has(idx) ? ' live' : '');
+                const nm = document.createElement('span');
+                nm.className = 'nm'; nm.textContent = label; nm.title = it.pageUrl || it.url;
+                const bd = document.createElement('span');
+                bd.className = 'bd'; bd.textContent = itemBadge(it);
+                row.append(nm, bd);
+                if (viewMode === 'pool' && !it.isStream && isFiltered(it._key)) { const h = document.createElement('span'); h.className = 'bd'; h.textContent = 'skipped'; row.appendChild(h); }
+                if (where.has(idx)) { const at = document.createElement('span'); at.className = 'at'; at.textContent = '● on screen'; row.appendChild(at); }
+                row.addEventListener('click', () => pickItem(idx));
+                pkList.appendChild(row);
+            });
+            if (!rows.length) {
+                const e = document.createElement('div');
+                e.className = 'pk-empty';
+                e.textContent = q ? 'Nothing matches that filter.' : (kind === 'streams' ? 'No live streams in the pool yet. Add some on the setup page.' : 'No videos or GIFs in the pool.');
+                pkList.appendChild(e);
+            } else if (rows.length > 400) {
+                const e = document.createElement('div');
+                e.className = 'pk-empty';
+                e.textContent = `Showing 400 of ${rows.length}. Type in the filter to narrow it down.`;
+                pkList.appendChild(e);
+            }
+            pkList.scrollTop = keep;
+        }
+        function scheduleRenderPicker() { clearTimeout(pkTimer); pkTimer = setTimeout(renderPicker, 200); }
+
+        // Put the chosen item in the chosen spot. Whatever was there swaps into the picked item's old spot, or goes back to the queue.
+        function pickItem(idx) {
+            const pool = P(), it = pool[idx];
+            if (!it) return;
+            const tv = pkTarget.value;
+            let pos;
+            if (tv === 'tile') {
+                const first = heroCount(), n = activeSlots.length - first;
+                if (n <= 0) return;
+                pos = first + (pkTileRR++ % n);
+            } else pos = parseInt(tv, 10);
+            const kind = slotKind(pos);
+            if (kind === 'comic' || !(pos >= 0 && pos < activeSlots.length)) return;
+            if (kind === 'cam' && !it.isStream) { pkSay('Cam spots only take live streams.'); return; }
+            if (it.isStream && kind !== 'cam' && streamsCamOnly()) { pkSay('"Streams in cam spots only" is ticked. Pick a cam spot, or untick that box.'); return; }
+            const cur = activeSlots.indexOf(idx);
+            if (cur === pos) { pkSay('Already showing there.'); return; }
+            pkSay('');
+
+            if (viewMode === 'pool' && !it.isStream && dismissed.has(it._key)) { dismissed.delete(it._key); saveDismissed(); }      // picking a skipped item brings it back
+
+            const oldIdx = activeSlots[pos];
+            if (cur >= 0) activeSlots[cur] = null;
+            poolQueue = poolQueue.filter(q => q !== idx);
+            activeSlots[pos] = idx;
+            if (oldIdx !== null && oldIdx !== undefined) {
+                const old = pool[oldIdx], ck = cur >= 0 ? slotKind(cur) : null;
+                const fitsCur = cur >= 0 && ck !== 'comic' && old && (ck !== 'cam' || old.isStream) && !(old.isStream && ck !== 'cam' && streamsCamOnly());
+                if (fitsCur) activeSlots[cur] = oldIdx; else poolQueue.push(oldIdx);
+            }
+            if (cur >= 0 && activeSlots[cur] === null) { const nx = takeFor(cur); if (nx !== null) activeSlots[cur] = nx; }
+
+            const changed = [pos]; if (cur >= 0) changed.push(cur);
+            if (changed.some(p => slotKind(p) === 'media')) rebuildLayout();          // a native-size spotlight changes the layout
+            else { changed.forEach(p => cells[p] && renderCell(cells[p], p)); updateStats(); }
+            renderPicker();
+        }
+
+        function setPicker(open) {
+            pickerOpen = open;
+            pickerEl.classList.toggle('open', open);
+            pickBtn.classList.toggle('on', open);
+            if (open) { pkSay(''); renderPicker(); }
+        }
+        pickBtn.addEventListener('click', () => setPicker(!pickerOpen));
+        $('pk-close').addEventListener('click', () => setPicker(false));
+        pkTarget.addEventListener('change', () => { pkSay(''); renderPicker(); });
+        pkKind.addEventListener('change', renderPicker);
+        pkFilter.addEventListener('input', debounce(renderPicker, 120));
+
+        window.addEventListener('keydown', e => {
+            if (arenaScreen.style.display !== 'block') return;
+            if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ''))) return;
+            if (e.key === 'Escape' && pickerOpen) { setPicker(false); return; }
+            if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) { setPicker(!pickerOpen); return; }
+            if (comic.on) {
+                const k = e.key;
+                if (k === 'ArrowRight' || k === ' ' || k === 'PageDown') { e.preventDefault(); comicTurn(1); }
+                else if (k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace') { e.preventDefault(); comicTurn(-1); }
+                else if (k === 'Home') comicTurn(-1e9);
+                else if (k === 'End') comicTurn(1e9);
+                else if (k === 'g' || k === 'G') skipAll();      // next grid of the arena beside the dojin
+                return;
+            }
+            if (e.key === 'ArrowLeft' || e.key === 'Backspace') { e.preventDefault(); goBack(); }
+            else if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); skipAll(); }
+        });
+
+        updateStats();
+    </script>
+</body>
+</html>
